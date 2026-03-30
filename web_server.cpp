@@ -47,7 +47,7 @@ void handleAccelerationTest() {
 
 // Zwraca status i wyniki pomiaru przyspieszenia (w formacie JSON)
 void handleAccelerationStatus() {
-  lastWebPing = millis(); // Odświeża status sesji, co zdejmuje filtrację zapytań CAN.
+  lastWebPing = millis(); // Odświeża status sesji, co zdejmuje filtrację zapytań CAN
   
   char jsonBuffer[350]; // Bufor na wszystkie potrzebne dane JSON
   uint32_t cTime = (currentMode == MODE_0_100_MEASURING) ? (millis() - dragTimerStart) : 0; // Oblicza czas rzeczywisty (delta) od startu pomiaru do teraz
@@ -97,6 +97,6 @@ void setupWebServer() {
 }
 
 void handleWebServerClient() {
-  // Nasłuchuje pakietów HTTP i kieruje je do odpowiednich handlerów.
+  // Nasłuchuje pakietów HTTP i kieruje je do odpowiednich handlerów
   server.handleClient(); 
 }

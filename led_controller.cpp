@@ -157,23 +157,16 @@ void handleShiftLightLogic(uint32_t now) {
         }
       }
     }
-  }
-}
+// Wykonuje jeden cykl obliczeniowy i wyświetlanie diod LED (wywoływane cyklicznie przez Task1)
+void updateLEDs() {
+  uint32_t now = millis();
+  // Czyścimy bufor docelowy przed nowymi obliczeniami
+  for(int i = 0; i < NUM_LEDS; i++) targetLeds[i] = CRGB::Black;
 
-// Główna pętla sterująca diodami wywoływana na Rdzeniu 1
-void taskCore1(void *pvParameters) {
-  while (true) {
-    uint32_t now = millis();
-    // Czyścimy bufor docelowy przed nowymi obliczeniami
-    for(int i = 0; i < NUM_LEDS; i++) targetLeds[i] = CRGB::Black;
-
-    // Obsługa specjalnej sekwencji odliczania 0-100
-    if (currentMode == MODE_0_100_COUNTDOWN) {
-      handleCountdownSequence(now);
-      vTaskDelay(pdMS_TO_TICKS(10));
-      continue; 
-    }
-
+  // Obsługa specjalnej sekwencji odliczania 0-100
+  if (currentMode == MODE_0_100_COUNTDOWN) {
+    handleCountdownSequence(now);
+  } else {
     // Normalna logika Shift Light
     handleShiftLightLogic(now);
     
@@ -183,6 +176,6 @@ void taskCore1(void *pvParameters) {
     }
     
     FastLED.show();
-    vTaskDelay(pdMS_TO_TICKS(10)); // Częstotliwość odświeżania diod (100Hz)
   }
 }
+

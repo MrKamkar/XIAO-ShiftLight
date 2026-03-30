@@ -40,8 +40,8 @@ void setup() {
   // Inicjalizacja LED (z led_controller.cpp)
   setupLEDs();
 
-  // Odczytujemy zapisane ustawienia, by system pamiętał je nawet po wyłączeniu zapłonu.
-  preferences.begin("shiftlight", true); // Parametr 'true' otwiera NVS w trybie "tylko do odczytu", co jest szybsze i bezpieczniejsze.
+  // Odczytujemy zapisane ustawienia, by system pamiętał je nawet po wyłączeniu zapłonu
+  preferences.begin("shiftlight", true); // Parametr 'true' otwiera NVS w trybie "tylko do odczytu", co jest szybsze i bezpieczniejsze
   shiftLimit = preferences.getInt("rpm", DEFAULT_SHIFT_LIMIT);
   brightness = preferences.getInt("bright", DEFAULT_BRIGHTNESS);
   ecoMode = preferences.getBool("eco", false);
@@ -60,6 +60,6 @@ void setup() {
 }
 
 void loop() {
-  // Architektura jest wielowątkowa, więc pusta pętla loop() nie jest potrzebna.
+  // Architektura jest wielowątkowa, więc pusta pętla loop() nie jest potrzebna
   vTaskDelete(NULL); 
 }

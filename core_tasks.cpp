@@ -6,6 +6,7 @@
 #include "can_bus.h"
 #include "web_server.h"
 #include "data_logger.h"
+#include "led_controller.h"
 #include "obd_pids.h"
 
 void taskCore0(void *pvParameters) {
@@ -131,5 +132,13 @@ void taskCore0(void *pvParameters) {
       sendOBDRequest(pidRequest); // Wysyłanie zapytania CAN
       lastOBDRequest = millis(); // Reset timera względem poprzedniego zapytania CAN
     }
+  }
+}
+
+// Rdzeń 1 (Application CPU): Wyświetlanie diod LED i animacje
+void taskCore1(void *pvParameters) {
+  while (true) {
+    updateLEDs(); // Wywołanie logiki LED z led_controller.cpp
+    vTaskDelay(pdMS_TO_TICKS(10)); // Częstotliwość odświeżania diod (100Hz)
   }
 }

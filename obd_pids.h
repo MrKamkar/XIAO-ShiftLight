@@ -1,6 +1,6 @@
 #pragma once
 
-// Definicje parametrów OBD2 (PIDs) wg standardu SAE J1979.
+// Definicje parametrów OBD2 (PIDs) wg standardu SAE J1979
 
 // Adresowanie CAN
 #define CAN_ID_OBD_BROADCAST    0x7DF   // Adres ogólny do wszystkich sterowników (Functional Request)
