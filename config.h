@@ -14,18 +14,19 @@
 
 // Tryby pracy urządzenia
 enum DeviceMode { 
-  MODE_SHIFT_LIGHT = 0, 
-  MODE_0_100_COUNTDOWN = 1, 
-  MODE_0_100_WAITING_FOR_LAUNCH = 2, 
-  MODE_0_100_MEASURING = 3, 
-  MODE_0_100_DONE = 4 
+  MODE_WELCOME = 0,
+  MODE_SHIFT_LIGHT = 1, 
+  MODE_0_100_COUNTDOWN = 2, 
+  MODE_0_100_WAITING_FOR_LAUNCH = 3, 
+  MODE_0_100_MEASURING = 4, 
+  MODE_0_100_DONE = 5 
 };
 
 // Zmienne konfiguracyjne z Flash (extern)
-extern int shiftLimit;
-extern int brightness;
-extern bool ecoMode;
-extern bool buzzerEnabled;
+extern volatile int shiftLimit;
+extern volatile int brightness;
+extern volatile bool ecoMode;
+extern volatile bool buzzerEnabled;
 extern volatile uint32_t lastWebPing;
 
 /* Zmienne współdzielone między rdzeniami w RTOS
@@ -46,3 +47,4 @@ extern volatile DeviceMode currentMode;
 extern volatile uint32_t dragTimerStart;
 extern volatile uint32_t timerResult;
 extern volatile bool isLogging;
+extern volatile uint32_t lastRPMTime; // Czas ostatniej poprawnej aktualizacji RPM

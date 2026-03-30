@@ -2,6 +2,8 @@
 #include "config.h"
 #include <LittleFS.h>
 
+QueueHandle_t logQueue = NULL;
+
 // Inicjalizacja systemu plików LittleFS
 void initDataLogger() {
   if (!LittleFS.begin(true)) {
@@ -19,21 +21,31 @@ void startDataLog() {
   }
 }
 
-// Zatrzymanie zapisu danych
 void stopDataLog() {
   isLogging = false; 
 }
 
-// Zapis danych do pliku
-void logTelemetryData() {
-  if (!isLogging) return;
-  
-  File file = LittleFS.open("/telemetry.csv", "a"); // Tryb dopisywania danych
+// Zadanie logowania - działa w tle, aby nie blokować CAN i WiFi
+void taskLogging(void *pvParameters) {
+  TelemetryData data;
+  while (true) {
+    // Czekaj na dane w kolejce (blokuje zadanie, gdy nie ma nic do zapisu)
+    if (xQueueReceive(logQueue, &data, portMAX_DELAY) == pdPASS) {
+      if (isLogging) {
+        writeTelemetryToFlash(data);
+      }
+    }
+  }
+}
+
+// Fizyczny zapis do pamięci Flash
+void writeTelemetryToFlash(const TelemetryData& data) {
+  File file = LittleFS.open("/telemetry.csv", "a");
   if (file) {
-    char csvLine[128]; // Bufor dla wszystkich parametrów
+    char csvLine[128];
     snprintf(csvLine, sizeof(csvLine), "%lu,%d,%d,%d,%d,%.2f,%d,%d,%d,%d\n", 
-             millis(), currentRPM, currentSpeed, currentTemp, currentLoad, 
-             currentVolt, currentIAT, currentTPS, currentMAP, currentFuel);
+             data.timestamp, data.rpm, data.speed, data.temp, data.load, 
+             data.volt, data.iat, data.tps, data.map, data.fuel);
     file.print(csvLine);
     file.close();
   }

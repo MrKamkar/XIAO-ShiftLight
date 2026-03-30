@@ -93,7 +93,7 @@
 </head>
 <body>
   <div id="countdownOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: opacity 0.3s ease-out;">
-    <div id="countdownNum" style="font-size: 250px; font-weight: bold; color: #ff3b3b; text-shadow: 0 0 50px rgba(255, 59, 59, 0.9); font-family: monospace;">3</div>
+    <div id="countdownNum" style="font-size: 250px; font-weight: bold; color: #ff3b3b; text-shadow: 0 0 50px rgba(255, 59, 59, 0.9); font-family: monospace;">5</div>
   </div>
 
   <h1>Acceleration Telemetry</h1>
@@ -188,7 +188,10 @@
   <div class="card card-timer">
     <h2>Acceleration Telemetry</h2>
     <div class="timer-display" id="timeDisplay">0.00s</div>
-    <button class="btn-timer" onclick="startTimer()">Initiate Launch Sequence</button>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn-timer" style="flex: 2;" onclick="startTimer()">Initiate Launch Sequence</button>
+      <button id="btnCancel" style="flex: 1; background: #333; color: #ff5252; border: 1px solid #ff5252; margin-top: 20px;" onclick="cancelTimer()">CANCEL</button>
+    </div>
     <div id="timerStatus" style="color:#2196F3;">STANDBY</div>
   </div>
   </div>
@@ -199,12 +202,16 @@
       let num = document.getElementById('countdownNum');
       overlay.style.display = 'flex';
       overlay.style.opacity = '1';
-      num.innerText = "3";
+      
+      num.style.fontSize = "250px"; 
+      num.innerText = "5";
       num.style.color = "#ff3b3b";
       num.style.textShadow = "0 0 50px rgba(255, 59, 59, 0.9)";
-      
-      setTimeout(() => num.innerText = "2", 1000);
-      setTimeout(() => num.innerText = "1", 2000);
+
+      setTimeout(() => num.innerText = "4", 1000);
+      setTimeout(() => num.innerText = "3", 2000);
+      setTimeout(() => num.innerText = "2", 3000);
+      setTimeout(() => num.innerText = "1", 4000);
       setTimeout(() => {
         num.innerText = "GO!";
         num.style.color = "#4CAF50";
@@ -213,7 +220,14 @@
           overlay.style.opacity = '0';
           setTimeout(() => overlay.style.display = 'none', 300);
         }, 800);
-      }, 3000);
+      }, 5000);
+    }
+    
+    function cancelTimer() {
+        document.getElementById('timerStatus').innerText = "STANDBY";
+        document.getElementById('timerStatus').style.color = "#2196F3";
+        document.getElementById('countdownOverlay').style.display = 'none';
+        activeSpeed = 0;
     }
 
     let t_rpm = 1000, c_rpm = 0;
@@ -312,6 +326,7 @@
       } else {
         stateDiv.className = "sys-state state-normal";
         stateDiv.innerText = "[ SYSTEM ONLINE - NORMAL ]";
+        stateDiv.style.borderLeftColor = "#4CAF50";
         document.getElementById('tempDisplay').style.color = "#4caf50";
       }
     }
@@ -557,7 +572,7 @@
                     }
                 }, 50); 
             }, 500);
-        }, 3000);
+        }, 5000);
     }
 
     maxRpm = parseInt(document.getElementById('rpmLimit').value) + 500;

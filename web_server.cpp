@@ -60,10 +60,17 @@ void handleAccelerationStatus() {
   server.send(200, "application/json", jsonBuffer); // Wysłanie danych w formacie JSON do przeglądarki
 }
 
+// Przerwanie testu przyspieszenia i powrót do trybu Shift Light
+void handleCancel0100() {
+  currentMode = MODE_SHIFT_LIGHT;
+  server.send(200, "text/plain", "OK");
+}
+
 void setupWebServer() {
   server.on("/", handleRoot); // Wyświetla stronę główną
   server.on("/save", handleSave); // Zapisuje ustawienia
   server.on("/start0100", handleAccelerationTest); // Rozpoczyna pomiar przyspieszenia
+  server.on("/cancel0100", handleCancel0100); // Przerywa pomiar
   server.on("/status0100", handleAccelerationStatus); // Zwraca status pomiaru przyspieszenia
 
   // API DATA LOGGERA

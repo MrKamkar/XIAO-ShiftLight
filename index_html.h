@@ -54,7 +54,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div id="countdownOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: opacity 0.3s ease-out;">
-    <div id="countdownNum" style="font-size: 250px; font-weight: bold; color: #ff3b3b; text-shadow: 0 0 50px rgba(255, 59, 59, 0.9); font-family: monospace;">3</div>
+    <div id="countdownNum" style="font-size: 250px; font-weight: bold; color: #ff3b3b; text-shadow: 0 0 50px rgba(255, 59, 59, 0.9); font-family: monospace;">5</div>
   </div>
 
   <h1>Acceleration Telemetry</h1>
@@ -149,7 +149,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   <div class="card card-timer">
     <h2>Acceleration Telemetry</h2>
     <div class="timer-display" id="timeDisplay">0.00s</div>
-    <button class="btn-timer" onclick="startTimer()">Initiate Launch Sequence</button>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn-timer" style="flex: 2;" onclick="startTimer()">Initiate Launch Sequence</button>
+      <button id="btnCancel" style="flex: 1; background: #333; color: #ff5252; border: 1px solid #ff5252; margin-top: 20px;" onclick="cancelTimer()">CANCEL</button>
+    </div>
     <div id="timerStatus" style="color:#2196F3;"></div>
   </div>
   </div>
@@ -160,12 +163,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       let num = document.getElementById('countdownNum');
       overlay.style.display = 'flex';
       overlay.style.opacity = '1';
-      num.innerText = "3";
+      
+      num.style.fontSize = "250px"; 
+      num.innerText = "5";
       num.style.color = "#ff3b3b";
       num.style.textShadow = "0 0 50px rgba(255, 59, 59, 0.9)";
-      
-      setTimeout(() => num.innerText = "2", 1000);
-      setTimeout(() => num.innerText = "1", 2000);
+
+      setTimeout(() => num.innerText = "4", 1000);
+      setTimeout(() => num.innerText = "3", 2000);
+      setTimeout(() => num.innerText = "2", 3000);
+      setTimeout(() => num.innerText = "1", 4000);
       setTimeout(() => {
         num.innerText = "GO!";
         num.style.color = "#4CAF50";
@@ -174,7 +181,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
           overlay.style.opacity = '0';
           setTimeout(() => overlay.style.display = 'none', 300);
         }, 800);
-      }, 3000);
+      }, 5000);
     }
 
     let t_rpm = 0, c_rpm = 0;
@@ -265,9 +272,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       window.open('/log/download', '_blank');
     }
 
+    function cancelTimer() {
+      fetch('/cancel0100').then(() => {
+        document.getElementById('timerStatus').innerText = "ABORTED";
+        document.getElementById('timerStatus').style.color = "#ff5252";
+        let overlay = document.getElementById('countdownOverlay');
+        overlay.style.display = 'none'; // Ukryj nakładkę odliczania jeśli była widoczna
+      });
+    }
+
     function startTimer() {
       fetch('/start0100').then(() => {
         document.getElementById('timerStatus').innerText = "ARMING...";
+        document.getElementById('timerStatus').style.color = "#2196F3"; // Reset koloru na niebieski
         showCountdownOverlay();
       });
     }
@@ -468,23 +485,46 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
           let stateDiv = document.getElementById('sysState');
           let ecoEnabled = document.getElementById('ecoMode').checked;
           
-          if (ecoEnabled) {
+          if (data.temp === 999) {
+            stateDiv.className = "sys-state state-normal";
+            stateDiv.innerText = "[ OCZEKIWANIE NA DANE ECU... ]";
+            stateDiv.style.borderLeftColor = "#555";
+          } else if (ecoEnabled) {
             stateDiv.className = "sys-state state-eco";
             stateDiv.innerText = "[ ECO DRIVE AKTYWNY ]";
-          } else if (data.temp < 75 && data.temp !== 999) {
+          } else if (data.temp < 75) {
             stateDiv.className = "sys-state state-cold";
             let limit = Math.round(parseInt(document.getElementById('rpmLimit').value) * 0.5);
             stateDiv.innerText = "[ SILNIK ZIMNY - OCHRONA (" + limit + " RPM) ]";
           } else {
             stateDiv.className = "sys-state state-normal";
             stateDiv.innerText = "[ SYSTEM ONLINE - NORMAL ]";
+            stateDiv.style.borderLeftColor = "#4CAF50";
           }
 
-          if (data.mode === 0) { document.getElementById('timerStatus').innerText = "STANDBY"; } 
-          else if (data.mode === 1) { document.getElementById('timerStatus').innerText = "COUNTDOWN..."; } 
-          else if (data.mode === 2) { document.getElementById('timerStatus').innerText = ">>> LAUNCH READY <<<"; document.getElementById('timeDisplay').innerText = "0.00s"; } 
-          else if (data.mode === 3) { document.getElementById('timerStatus').innerText = "TRACKING..."; document.getElementById('timeDisplay').innerText = (data.current_time / 1000.0).toFixed(2) + "s"; } 
-          else if (data.mode === 4) { document.getElementById('timerStatus').innerText = "FINISHED"; document.getElementById('timerStatus').style.color = "#4caf50"; document.getElementById('timeDisplay').innerText = (data.time / 1000.0).toFixed(2) + "s"; }
+          if (data.mode <= 1) { 
+            document.getElementById('timerStatus').innerText = "STANDBY"; 
+            document.getElementById('timerStatus').style.color = "#2196F3"; 
+          } 
+          else if (data.mode === 2) { 
+            document.getElementById('timerStatus').innerText = "COUNTDOWN..."; 
+            document.getElementById('timerStatus').style.color = "#2196F3"; 
+          } 
+          else if (data.mode === 3) { 
+            document.getElementById('timerStatus').innerText = ">>> LAUNCH READY <<<"; 
+            document.getElementById('timerStatus').style.color = "#2196F3";
+            document.getElementById('timeDisplay').innerText = "0.00s";
+          } 
+          else if (data.mode === 4) { 
+            document.getElementById('timerStatus').innerText = "TRACKING..."; 
+            document.getElementById('timerStatus').style.color = "#2196F3";
+            document.getElementById('timeDisplay').innerText = (data.current_time / 1000.0).toFixed(2) + "s"; 
+          } 
+          else if (data.mode === 5) { 
+            document.getElementById('timerStatus').innerText = "FINISHED"; 
+            document.getElementById('timerStatus').style.color = "#4caf50"; 
+            document.getElementById('timeDisplay').innerText = (data.time / 1000.0).toFixed(2) + "s"; 
+          }
         });
     }
     

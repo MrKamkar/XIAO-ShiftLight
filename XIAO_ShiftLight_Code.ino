@@ -9,12 +9,13 @@
 #include "web_server.h"
 #include "data_logger.h"
 
-// --- Definicje zmiennych globalnych (zadeklarowanych extern w config.h) ---
-int shiftLimit;
-int brightness;
-bool ecoMode;
-bool buzzerEnabled = true;
+// Definicje zmiennych globalnych (zadeklarowanych extern w config.h)
+volatile int shiftLimit;
+volatile int brightness;
+volatile bool ecoMode;
+volatile bool buzzerEnabled = true;
 volatile uint32_t lastWebPing = 0;
+volatile uint32_t lastRPMTime = 0; // Inicjalizacja czasu ostatniej poprawnej ramki
 
 volatile int currentRPM = 0;
 volatile int currentSpeed = 0;
@@ -26,16 +27,18 @@ volatile int currentTPS = 0;
 volatile int currentMAP = 0;
 volatile int currentFuel = 0;
 
-volatile DeviceMode currentMode = MODE_SHIFT_LIGHT;
+volatile DeviceMode currentMode = MODE_WELCOME;
 volatile uint32_t dragTimerStart = 0;
 volatile uint32_t timerResult = 0;
 
-volatile bool isLogging = false; // Definicja bezpieczeństwa zapisu na Dysk
+volatile bool isLogging = false; 
 
 Preferences preferences;
 
 void setup() {
   Serial.begin(115200); // Komunikacja z komputerem przez USB do debugowania
+
+  lastRPMTime = millis(); // Punkt zerowy dla fail-safe, aby uniknąć błędu na starcie
 
   // Inicjalizacja LED (z led_controller.cpp)
   setupLEDs();

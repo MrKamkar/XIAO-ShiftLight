@@ -7,7 +7,7 @@ CRGB leds[NUM_LEDS]; // Tablica do przechowywania aktualnych kolorów diod
 CRGB targetLeds[NUM_LEDS]; // Tablica do przechowywania docelowych kolorów diod
 
 // Paleta kolorów dla 8 diod LED (od zimnego niebieskiego do gorącego czerwonego)
-CRGB palette[NUM_LEDS] = {
+const CRGB palette[NUM_LEDS] = {
   CRGB::Blue,
   CRGB::Blue,
   CRGB::Green,
@@ -21,10 +21,16 @@ CRGB palette[NUM_LEDS] = {
 // Inicjalizacja diod LED i buzzera
 void setupLEDs() {
   pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW); // Wyłączenie buzzera aktywnego na starcie (brak prądu na bazie tranzystora)
+  digitalWrite(BUZZER_PIN, LOW); 
+  
+  // Wymuszenie sterownika sprzętowego RMT (odpornego na przerwania WiFi)
   FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
-  FastLED.clear(); // Wyczyść matrycę LED przed startem
-  FastLED.show(); // Wyświetl nową czarną matrycę LED
+  
+  // CAŁKOWITE wyłączenie ditheringu czasowego (eliminuje szum świetlny przy małej jasności)
+  FastLED.setDither(DISABLE_DITHER); 
+  
+  FastLED.clear(); 
+  FastLED.show(); 
 }
 
 // Obsługa sekwencji odliczania przed startem
@@ -38,34 +44,38 @@ void handleCountdownSequence(uint32_t now) {
     countdownStep = 1; 
   }
   
-  uint32_t elapsed = now - countdownTimer; // Czas, który upłynął od startu
+  uint32_t elapsed = now - countdownTimer; // Czas od startu przycisku
   FastLED.clear(); 
   
-  int currentSecond = elapsed / 1000; // Licznik sekund (0, 1, 2, 3)
+  int currentSecond = elapsed / 1000; // Licznik sekund (0, 1, 2, 3, 4, 5)
   
-  if (currentSecond < 3) {
-    // Zapalanie czerwonych diod parami od środka na zewnątrz
-    int numPairs = currentSecond + 1; 
+  if (currentSecond < 5) {
+    // Odliczanie: 5 i 4 (s=0,1) diody ciemne, 3 (s=2) 1 para, 2 (s=3) 2 pary, 1 (s=4) 3 pary.
+    int numPairs = 0;
+    if (currentSecond == 2) numPairs = 1;
+    else if (currentSecond == 3) numPairs = 2;
+    else if (currentSecond == 4) numPairs = 3;
+    
     for (int i = 0; i < numPairs; i++) {
-      leds[3 - i] = CRGB::Red;
-      leds[4 + i] = CRGB::Red;
+        leds[3 - i] = CRGB::Red;
+        leds[4 + i] = CRGB::Red;
     }
     
-    // Krótki sygnał dźwiękowy na początku każdej sekundy
-    bool beep = (elapsed % 1000 < 200);
+    // Sygnał dźwiękowy tylko dla 3... 2... 1...
+    bool beep = (currentSecond >= 2 && elapsed % 1000 < 200);
     digitalWrite(BUZZER_PIN, (buzzerEnabled && beep) ? HIGH : LOW);
   } 
-  else if (currentSecond < 4) {
-    // Sygnał do startu (wszystkie diody na zielono)
+  else if (currentSecond < 6) {
+    // Sekunda 5: Sygnał do startu (GO!) - Cały pasek zielony (8 diod) + długi sygnał
     fill_solid(leds, NUM_LEDS, CRGB::Green);
     bool longBeep = (elapsed % 1000 < 800);
     digitalWrite(BUZZER_PIN, (buzzerEnabled && longBeep) ? HIGH : LOW);
   } 
   else {
-    // Koniec odliczania i powrót do trybu oczekiwania na start
+    // Koniec sekwencji
     digitalWrite(BUZZER_PIN, LOW);
     currentMode = MODE_0_100_WAITING_FOR_LAUNCH; 
-    countdownStep = 0; // Reset zatrzasku dla ponownego użycia
+    countdownStep = 0; 
   }
   
   FastLED.show();
@@ -151,7 +161,7 @@ void handleShiftLightLogic(uint32_t now) {
           // Płynne podświetlenie ostatniej diody, by pokazać ułamkowe wartości obrotów
           float fraction = ledPos - (int)ledPos; 
           targetLeds[i] = baseColor;
-          targetLeds[i].nscale8( (uint8_t)(fraction * 255.0f) ); // Wygasza diodę proporcjonalnie do ułamka obrotów
+          targetLeds[i].nscale8( (uint8_t)(fraction * 255) ); // Wygasza diodę proporcjonalnie do ułamka obrotów
         } else {
           targetLeds[i] = CRGB::Black;          
         }
@@ -160,25 +170,82 @@ void handleShiftLightLogic(uint32_t now) {
   }
 }
 
+// Obsługa animacji powitalnej po włączeniu zasilania (ceremonia otwarcia)
+void handleWelcomeSequence(uint32_t now) {
+  static uint32_t welcomeTimer = 0;
+  if(welcomeTimer == 0) welcomeTimer = now;
+  
+  uint32_t elapsed = now - welcomeTimer;
+  const uint32_t duration = 3000; // Długość animacji powitalnej
+
+  if (elapsed < duration) {
+    float progress = (float)elapsed / (float)duration; 
+    // Fala przelatuje od -2 do NUM_LEDS + 2 dla gładkiego wejścia i wyjścia
+    float headPos = progress * (NUM_LEDS + 4) - 2; 
+    
+    for (int i = 0; i < NUM_LEDS; i++) {
+        float distance = abs((float)i - headPos);
+        
+        if (distance < 1.5) {
+          // Centrum fali (ok. 3 diody szerokości) => pełny kolor z palety
+          targetLeds[i] = palette[i];
+          // Dodatkowy błysk w samym centrum
+          if (distance < 0.5) targetLeds[i].maximizeBrightness();
+        } else if (distance < 3.0) {
+          // Krawędzie fali (fall-off) => Płynne wygaszanie kolorów
+          // Używamy ułamkowego blendowania zamiast nscale8 dla większej stabilności
+          uint8_t fade = (3.0 - distance) * 80; 
+          targetLeds[i] = blend(CRGB::Black, palette[i], fade);
+        } else {
+          // Reszta paska pozostaje ciemna
+          targetLeds[i] = CRGB::Black;
+        }
+    }
+  } else {
+    // Koniec ceremonii - przechodzimy do głównego zadania
+    currentMode = MODE_SHIFT_LIGHT;
+    welcomeTimer = 0; 
+  }
+}
+
 // Wykonuje jeden cykl obliczeniowy i wyświetlanie diod LED (wywoływane cyklicznie przez Task1)
 void updateLEDs() {
   uint32_t now = millis();
+  // Jeśli są starsze niż 1000ms, pokazujemy animację błędu (pulsowanie na czerwono)
+  bool isDataStale = (now - lastRPMTime > 500);
+  bool isError = (now - lastRPMTime > 1000);
+
   // Czyścimy bufor docelowy przed nowymi obliczeniami
   for(int i = 0; i < NUM_LEDS; i++) targetLeds[i] = CRGB::Black;
 
-  // Obsługa specjalnej sekwencji odliczania 0-100
-  if (currentMode == MODE_0_100_COUNTDOWN) {
+  if (currentMode == MODE_WELCOME) {
+    handleWelcomeSequence(now);
+  } else if (isError && currentMode != MODE_0_100_COUNTDOWN) {
+    // beatsin8(BPM, min, max) – tworzy idealnie gładkie przejście 0-255-0
+    uint8_t breath = beatsin8(30, 0, 255); 
+    CRGB errorColor = CRGB::Red;
+    errorColor.nscale8(breath);
+    for(int i=0; i<NUM_LEDS; i++) targetLeds[i] = errorColor;
+  } else if (isDataStale && currentMode != MODE_0_100_COUNTDOWN) {
+    // Dane lekko spóźnione (500ms-1000ms) - po prostu wygaszamy
+  } else if (currentMode == MODE_0_100_COUNTDOWN) {
     handleCountdownSequence(now);
   } else {
     // Normalna logika Shift Light
     handleShiftLightLogic(now);
-    
-    // Płynne przechodzenie kolorów (efekt wygaszania dla 100 FPSów)
-    for(int i=0; i<NUM_LEDS; i++) {
-      leds[i] = blend(leds[i], targetLeds[i], 40); 
-    }
-    
-    FastLED.show();
   }
-}
 
+    // Płynne przechodzenie kolorów (efekt wygaszania dla 100 FPSów)
+  for(int i=0; i<NUM_LEDS; i++) {
+    // Jeśli różnica jest minimalna, przeskocz od razu do celu (eliminuje flickering/drgania przy niskiej jasności)
+    if (abs((int)leds[i].r - (int)targetLeds[i].r) < 2 && 
+        abs((int)leds[i].g - (int)targetLeds[i].g) < 2 && 
+        abs((int)leds[i].b - (int)targetLeds[i].b) < 2) {
+      leds[i] = targetLeds[i];
+    } else {
+      leds[i] = blend(leds[i], targetLeds[i], 60); 
+    }
+  }
+
+  FastLED.show();
+}
