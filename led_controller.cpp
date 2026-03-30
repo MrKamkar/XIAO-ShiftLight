@@ -157,6 +157,9 @@ void handleShiftLightLogic(uint32_t now) {
         }
       }
     }
+  }
+}
+
 // Wykonuje jeden cykl obliczeniowy i wyświetlanie diod LED (wywoływane cyklicznie przez Task1)
 void updateLEDs() {
   uint32_t now = millis();

@@ -12,7 +12,7 @@
 void taskCore0(void *pvParameters) {
   // Inicjalizacja WiFi jako Access Point
   WiFi.mode(WIFI_AP);
-  WiFi.softAP("Kamcore_ShiftLight", "kamcore_drive"); // Nazwa sieci i hasło do połączenia
+  WiFi.softAP("Kamcore_ShiftLight", "kamcore_pass"); // Nazwa sieci i hasło do połączenia
   
   // Inicjalizacja serwera WWW (z web_server.cpp)
   setupWebServer();
