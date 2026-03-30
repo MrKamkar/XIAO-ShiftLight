@@ -87,14 +87,24 @@ void handleShiftLightLogic(uint32_t now) {
   // Pamięć dla efektu mrugania (stroboskopu)
   static bool flashState = false;
   static uint32_t lastFlash = 0;
+  
+  // Wygładzanie sygnału RPM (Exponential Moving Average)
+  static float smoothedRPM = 0;
+  smoothedRPM = (currentRPM * 0.7) + (smoothedRPM * 0.3);
 
-  // Ochrona zimnego silnika (ustawienie odpowiedniego limitu obrotów)
-  bool isCold = (currentTemp < 75 && currentTemp != 999); 
+  // Histereza temperatury (zapobiega migotaniu trybu zimnego przy równych 75st)
+  static bool isColdState = true;
+  if (currentTemp != 999) {
+    if (isColdState && currentTemp >= 75) isColdState = false;      // Silnik się zagrzał
+    else if (!isColdState && currentTemp < 72) isColdState = true;  // Silnik ostygł (np. długi postój)
+  }
+  bool isCold = (isColdState && currentTemp != 999); 
   int activeLimit = shiftLimit;
   
   if (ecoMode) activeLimit = shiftLimit * 0.4;     // Tryb ECO to 40% głównych obrotów (np. 1600 dla diesla, 2400 dla benzyny)
   else if (isCold) activeLimit = shiftLimit * 0.5; // Zimny Silnik to 50% głównych obrotów (Idealna dynamika między dieslem a benzyną)
 
+  // Do sprawdzania limitu (stroboskopu) używamy surowych danych dla zerowego opóźnienia
   if (currentRPM >= activeLimit) {
     if (now - lastFlash > 80) { // Szybkość mrugania (stroboskop)
       flashState = !flashState;
@@ -113,7 +123,8 @@ void handleShiftLightLogic(uint32_t now) {
   } else {
     // Różna częstość dźwięku przed zmianą biegu (W ECO działa zawsze, w sporcie tylko po rozgrzaniu)
     if (buzzerEnabled && (ecoMode || !isCold) && activeLimit > 0) {
-      float percent = (float)currentRPM / (float)activeLimit;
+      // Do dźwięku i paska LED używamy wygładzonych obrotów dla płynności
+      float percent = smoothedRPM / (float)activeLimit;
       if (percent >= 0.95) {
         if ((now / 50) % 2 == 0) digitalWrite(BUZZER_PIN, HIGH); // Szybki rytm
         else digitalWrite(BUZZER_PIN, LOW);
@@ -127,14 +138,14 @@ void handleShiftLightLogic(uint32_t now) {
       digitalWrite(BUZZER_PIN, LOW);
     }
     
-    // Logika wyświetlania obrotów (Shift Light)
-    if (currentRPM > 0) {
+    // Logika wyświetlania obrotów (Shift Light) na pasku LED
+    if (smoothedRPM > 100) { // Próg wyświetlania, żeby pasek nie świecił na samym zapłonie
       int startRpm = ecoMode ? 1000 : 0;
       
       float range = (float)(activeLimit - startRpm);
       if (range <= 0) range = 1;
 
-      float rpmOffset = (float)(currentRPM - startRpm);
+      float rpmOffset = smoothedRPM - (float)startRpm;
       if (rpmOffset < 0) rpmOffset = 0;
       
       float ledPos = (rpmOffset / range) * NUM_LEDS;
