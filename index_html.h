@@ -525,7 +525,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             document.getElementById('timerStatus').style.color = "#4caf50"; 
             document.getElementById('timeDisplay').innerText = (data.time / 1000.0).toFixed(2) + "s"; 
           }
-        });
+        }).catch(() => {}); // Cicha obsługa błędu (ESP32 zajęty lub timeout)
     }
     
     maxRpm = parseInt(document.getElementById('rpmLimit').value) + 500;

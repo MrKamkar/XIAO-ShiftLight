@@ -33,7 +33,7 @@ void setupLEDs() {
   FastLED.show(); 
 }
 
-// Obsługa sekwencji odliczania przed startem
+// Obsługa sekwencji odliczania przed startem (pisze do targetLeds[], blending w updateLEDs)
 void handleCountdownSequence(uint32_t now) {
   static int countdownStep = 0;
   static uint32_t countdownTimer = 0;
@@ -45,8 +45,6 @@ void handleCountdownSequence(uint32_t now) {
   }
   
   uint32_t elapsed = now - countdownTimer; // Czas od startu przycisku
-  FastLED.clear(); 
-  
   int currentSecond = elapsed / 1000; // Licznik sekund (0, 1, 2, 3, 4, 5)
   
   if (currentSecond < 5) {
@@ -57,8 +55,8 @@ void handleCountdownSequence(uint32_t now) {
     else if (currentSecond == 4) numPairs = 3;
     
     for (int i = 0; i < numPairs; i++) {
-        leds[3 - i] = CRGB::Red;
-        leds[4 + i] = CRGB::Red;
+        targetLeds[3 - i] = CRGB::Red;
+        targetLeds[4 + i] = CRGB::Red;
     }
     
     // Sygnał dźwiękowy tylko dla 3... 2... 1...
@@ -67,7 +65,7 @@ void handleCountdownSequence(uint32_t now) {
   } 
   else if (currentSecond < 6) {
     // Sekunda 5: Sygnał do startu (GO!) - Cały pasek zielony (8 diod) + długi sygnał
-    fill_solid(leds, NUM_LEDS, CRGB::Green);
+    for(int i = 0; i < NUM_LEDS; i++) targetLeds[i] = CRGB::Green;
     bool longBeep = (elapsed % 1000 < 800);
     digitalWrite(BUZZER_PIN, (buzzerEnabled && longBeep) ? HIGH : LOW);
   } 
@@ -77,8 +75,6 @@ void handleCountdownSequence(uint32_t now) {
     currentMode = MODE_0_100_WAITING_FOR_LAUNCH; 
     countdownStep = 0; 
   }
-  
-  FastLED.show();
 }
 
 // Logika wyświetlania obrotów (Shift Light)
@@ -246,7 +242,7 @@ void updateLEDs() {
     handleShiftLightLogic(now);
   }
 
-    // Płynne przechodzenie kolorów (efekt wygaszania dla 100 FPSów)
+  // Płynne przechodzenie kolorów (efekt wygaszania dla 100 FPSów)
   for(int i=0; i<NUM_LEDS; i++) {
     // Jeśli różnica jest minimalna, przeskocz od razu do celu (eliminuje flickering/drgania przy niskiej jasności)
     if (abs((int)leds[i].r - (int)targetLeds[i].r) < 2 && 
