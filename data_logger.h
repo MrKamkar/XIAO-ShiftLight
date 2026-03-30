@@ -29,6 +29,3 @@ void taskLogging(void *pvParameters);
 
 // Współdzielona kolejka dla logowania
 extern QueueHandle_t logQueue;
-
-// Zapisuje jeden wiersz danych do pliku CSV (wywoływane przez taskLogging)
-void writeTelemetryToFlash(const TelemetryData& data);

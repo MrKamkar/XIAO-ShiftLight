@@ -36,12 +36,15 @@ volatile bool isLogging = false;
 Preferences preferences;
 
 void setup() {
-  Serial.begin(115200); // Komunikacja z komputerem przez USB do debugowania
+  // Serial.begin(115200); // Odkomentuj tylko do debugowania przez USB
 
   lastRPMTime = millis(); // Punkt zerowy dla fail-safe, aby uniknąć błędu na starcie
 
   // Inicjalizacja LED (z led_controller.cpp)
   setupLEDs();
+
+  // Inicjalizacja systemu plików Flash (LittleFS) dla Data Loggera
+  initDataLogger();
 
   // Odczytujemy zapisane ustawienia, by system pamiętał je nawet po wyłączeniu zapłonu
   preferences.begin("shiftlight", true); // Parametr 'true' otwiera NVS w trybie "tylko do odczytu", co jest szybsze i bezpieczniejsze
@@ -53,7 +56,6 @@ void setup() {
   
   // Ustawienie jasności matrycy LED (z led_controller.cpp)
   FastLED.setBrightness(brightness);
-  
 
   // Core 0 (Protocol CPU): Bezkompromisowe nasłuchiwanie sprzętowe CAN Bus'a i Web Serwera WiFi
   xTaskCreatePinnedToCore(taskCore0, "Core0Task", 10000, NULL, 1, NULL, 0); // 10KB stosu, które wystarczy na obsługę WiFi, CAN i logowania danych

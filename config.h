@@ -4,9 +4,14 @@
 // Konfiguracja pinów oraz zmiennych globalnych
 #define LED_PIN     D1      // Pin danych wychodzących do paska WS2812B
 #define BUZZER_PIN  D2      // Pin sygnałowy buzzera
-#define RX_PIN      D4      // CAN Receiver (Wewnętrzny kontroler TWAI ESP32-S3)
-#define TX_PIN      D5      // CAN Transmitter (Wewnętrzny kontroler TWAI ESP32-S3)
+#define RX_PIN      D5      // CAN Receiver (Wewnętrzny kontroler TWAI ESP32-S3)
+#define TX_PIN      D4      // CAN Transmitter (Wewnętrzny kontroler TWAI ESP32-S3)
 #define NUM_LEDS    8       // Ilość używanych fizycznie diod RGB
+
+// Konfiguracja CAN
+#define CAN_BAUDRATE_500K   true    // Powrót na 500kbps (standard OBD2)
+#define CAN_AUTO_RECOVERY   true    // Automatycznie odblokuj BUS OFF
+#define CAN_TEST_LOOPBACK   false   // Ustaw na true, żeby sprawdzić sam moduł (bez auta)
 
 // Ustawienia domyślne (Przed odczytem z pamięci rozerzalnej NVS)
 #define DEFAULT_SHIFT_LIMIT 6000

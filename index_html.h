@@ -469,7 +469,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
           let ind = document.getElementById('logIndicator');
           let btnS = document.getElementById('btnLogStart');
           if(ind && data.log !== undefined) {
-             if(data.log === "true") {
+             if(data.log === true) {
                 ind.style.backgroundColor = '#ff5252';
                 ind.style.boxShadow = '0 0 10px #ff5252';
                 btnS.style.background = '#ff5252'; btnS.style.color = '#fff';

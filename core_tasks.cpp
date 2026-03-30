@@ -20,13 +20,26 @@ void taskCore0(void *pvParameters) {
   setupWebServer();
 
   // Inicjalizacja sterownika CAN (TWAI) ze standardem ISO 15765-4
+#if CAN_TEST_LOOPBACK
+  twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)TX_PIN, (gpio_num_t)RX_PIN, TWAI_MODE_NO_ACK);
+#else
   twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)TX_PIN, (gpio_num_t)RX_PIN, TWAI_MODE_NORMAL);
+#endif
+#if CAN_BAUDRATE_500K
   twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
+#else
+  twai_timing_config_t t_config = TWAI_TIMING_CONFIG_250KBITS();
+#endif
   twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
-  // Instalacja i uruchomienie sterownika TWAI
-  twai_driver_install(&g_config, &t_config, &f_config);
-  twai_start();
+  // Instalacja i uruchomienie sterownika TWAI (z walidacją)
+  if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK || twai_start() != ESP_OK) {
+    // Krytyczny błąd sprzętowy — zatrzymaj rdzeń 0
+    while(true) vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+
+  // Konfiguracja alertów TWAI (event-driven zamiast polling)
+  twai_reconfigure_alerts(TWAI_ALERT_RX_DATA | TWAI_ALERT_BUS_OFF, NULL);
 
   // Inicjalizacja Kolejki i Zadania Logowania (Rdzeń 0, niski priorytet)
   logQueue = xQueueCreate(50, sizeof(TelemetryData));
@@ -54,11 +67,14 @@ void taskCore0(void *pvParameters) {
       lastLogTime = millis();
     }
 
+    // Event-driven odbiór CAN (bez blokowania pętli)
+    uint32_t alerts = 0;
+    twai_read_alerts(&alerts, 0); // Non-blocking: sprawdza flagi zdarzeń TWAI
 
-    // Odbiór danych z magistrali CAN
-    twai_message_t rx_msg;
-    if (twai_receive(&rx_msg, pdMS_TO_TICKS(1)) == ESP_OK) {
-      do {
+    // Odbiór danych z magistrali CAN (wyzwalany alertem RX_DATA)
+    if (alerts & TWAI_ALERT_RX_DATA) {
+      twai_message_t rx_msg;
+      while (twai_receive(&rx_msg, 0) == ESP_OK) {
         // Sprawdź czy odpowiedź pochodzi z zakresu adresów diagnostycznych ECU (0x7E8 - 0x7EF)
         if (rx_msg.identifier >= CAN_ID_OBD_REPLY_MIN && rx_msg.identifier <= CAN_ID_OBD_REPLY_MAX) {
           
@@ -97,8 +113,15 @@ void taskCore0(void *pvParameters) {
             }
           }
         }
-      } while (twai_receive(&rx_msg, 0) == ESP_OK); 
+      }
     }
+
+    // Natychmiastowy auto-recovery CAN BUS OFF (event-driven zamiast pollingu co 2s)
+    #if CAN_AUTO_RECOVERY
+    if (alerts & TWAI_ALERT_BUS_OFF) {
+      twai_initiate_recovery();
+    }
+    #endif
     
     // Agile Polling Schedule: 15ms priorytet RPM
     uint32_t now = millis();

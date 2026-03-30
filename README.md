@@ -43,7 +43,7 @@ A high-performance, dual-core automotive telemetry system built on the **Seeed S
 ### Default Settings
 - **CAN Bus Speed**: 500 kbits/s (ISO 15765-4)
 - **WiFi SSID**: `Kamcore_ShiftLight`
-- **WiFi Password**: `kamcore_drive`
+- **WiFi Password**: `kamcore_pass`
 - **IP Address**: `192.168.4.1`
 
 ---
