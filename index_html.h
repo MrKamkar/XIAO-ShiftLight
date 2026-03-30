@@ -1,0 +1,497 @@
+#pragma once
+
+const char INDEX_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Acceleration Telemetry</title>
+  <style>
+    body { background-color: #0a0a0a; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 15px; }
+    h1 { color: #ff3b3b; text-transform: uppercase; letter-spacing: 2px; font-size: 20px; margin-bottom: 25px; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; align-items: start; padding: 0 10px; }
+    .card { background: #161616; padding: 20px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.9); text-align: left; width: 100%; border-top: 4px solid #ff3b3b; box-sizing: border-box; }
+    .card-timer { border-top-color: #2196F3; }
+    .card-telemetry { border-top-color: #4CAF50; }
+    h2 { margin-top: 0; color: #fff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 8px; letter-spacing: 1px;}
+    
+    #cockpit { position: relative; text-align: center; padding-top: 10px; }
+    .raw-data-corner { position: absolute; top: 10px; font-weight: bold; font-family: monospace; font-size: 16px; }
+    .left-corner { left: 15px; color: #2196F3; }
+    .right-corner { right: 15px; color: #ffecb3; }
+    canvas { max-width: 100%; height: auto !important; }
+    #gaugeCanvas { width: 100%; max-width: 380px; margin: 25px auto 0; display: block; }
+    
+    .mini-gauges { display: flex; justify-content: space-around; margin-top: 15px; gap: 10px; }
+    .mini-gauge { text-align: center; font-size: 10px; color: #777; font-weight: bold; letter-spacing: 1px; flex: 1;}
+    .mini-gauge canvas { width: 100%; max-width: 120px; display: block; margin: 0 auto 5px; border-radius: 3px;}
+    
+    .sys-state { margin-top: 25px; font-weight: bold; font-size: 14px; text-align: center; padding: 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 1px;}
+    .state-normal { background: #222; color: #aaa; border-left: 4px solid #555; }
+    .state-cold { background: #1a2a44; color: #90caf9; border-left: 4px solid #2196F3; }
+    .state-eco { background: #153317; color: #a5d6a7; border-left: 4px solid #4CAF50; }
+
+    label { font-weight: bold; display: block; margin-top: 20px; color: #999; font-size: 14px;}
+    input[type=range] { width: 100%; margin-top: 8px; accent-color: #ff3b3b; height: 6px; border-radius: 5px; outline: none; }
+    
+    .switch { position: relative; display: inline-block; width: 44px; height: 22px; float: right; margin-top: -2px;}
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: #4caf50; }
+    input:checked + .slider:before { transform: translateX(22px); }
+
+    button { background-color: #333; color: white; border: 1px solid #555; padding: 12px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 20px; transition: 0.3s; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;}
+    button:hover { background-color: #ff3b3b; border-color: #ff3b3b;}
+    .btn-timer { background-color: #1a3a5f; border-color: #2196F3; color: #90caf9;}
+    .btn-timer:hover { background-color: #2196F3; color: #fff;}
+    
+    #status, #timerStatus { margin-top: 15px; font-weight: bold; text-align: center; height: 18px; font-size: 13px;}
+    .val-display { float: right; color: #ff3b3b; }
+    .timer-display { font-size: 42px; color: #fff; text-align: center; margin: 15px 0; font-family: monospace; text-shadow: 0 0 10px rgba(255,255,255,0.3);}
+  </style>
+</head>
+<body>
+  <div id="countdownOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: opacity 0.3s ease-out;">
+    <div id="countdownNum" style="font-size: 250px; font-weight: bold; color: #ff3b3b; text-shadow: 0 0 50px rgba(255, 59, 59, 0.9); font-family: monospace;">3</div>
+  </div>
+
+  <h1>Acceleration Telemetry</h1>
+  
+  <div class="dashboard-grid">
+    <div class="card" id="cockpit">
+    <div class="raw-data-corner left-corner"><span id="tempDisplay">--</span>°C</div>
+    <div class="raw-data-corner right-corner"><span id="speedDisplay" style="font-size: 22px;">0</span> km/h</div>
+    
+    <canvas id="gaugeCanvas" width="380" height="200"></canvas>
+    
+    <div class="mini-gauges" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 25px;">
+      <div class="mini-gauge">
+        <div style="font-size:16px; font-weight:bold; color:#ff8f00; margin-bottom:4px;"><span id="valLoad">--</span></div>
+        <canvas id="loadCanvas" width="120" height="10"></canvas>
+        <div style="margin-top:4px;">ENGINE LOAD</div>
+      </div>
+      <div class="mini-gauge">
+        <div style="font-size:16px; font-weight:bold; color:#4CAF50; margin-bottom:4px;"><span id="valVolt">--</span></div>
+        <canvas id="voltCanvas" width="120" height="10"></canvas>
+        <div style="margin-top:4px;">BATTERY VOLT</div>
+      </div>
+      <div class="mini-gauge">
+        <div style="font-size:16px; font-weight:bold; color:#FF9800; margin-bottom:4px;"><span id="valTps">--</span></div>
+        <canvas id="tpsCanvas" width="120" height="10"></canvas>
+        <div style="margin-top:4px;">THROTTLE</div>
+      </div>
+      <div class="mini-gauge">
+        <div style="font-size:20px; font-weight:bold; color:#fff; line-height:20px; margin-bottom:6px;"><span id="valIat">--</span><span style="font-size:12px; color:#aaa;">°C</span></div>
+        <div style="border-top: 2px solid #333; padding-top:4px; max-width: 80px; margin: 0 auto;">IN-TEMP</div>
+      </div>
+      <div class="mini-gauge">
+        <div style="font-size:20px; font-weight:bold; color:#fff; line-height:20px; margin-bottom:6px;"><span id="valMap">--</span><span style="font-size:12px; color:#aaa;">kPa</span></div>
+        <div style="border-top: 2px solid #333; padding-top:4px; max-width: 80px; margin: 0 auto;">BOOST</div>
+      </div>
+      <div class="mini-gauge">
+        <div style="font-size:16px; font-weight:bold; color:#2196F3; margin-bottom:4px;"><span id="valFuel">--</span></div>
+        <canvas id="fuelCanvas" width="120" height="10"></canvas>
+        <div style="margin-top:4px;">FUEL L.</div>
+      </div>
+    </div>
+    
+    <div id="sysState" class="sys-state state-normal">LINK OFFLINE...</div>
+  </div>
+
+  <div class="card card-telemetry">
+    <h2>Track Telemetry G-Force</h2>
+    <canvas id="telemetryCanvas" width="380" height="120" style="width: 100%; max-width: 380px; display:block; margin: 10px auto; border-radius: 8px;"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Vehicle Settings</h2>
+    
+    <label for="rpmLimit">SHIFT LIGHT RPM: <span id="rpmVal" class="val-display">%RPM_LIMIT%</span></label>
+    <input type="range" id="rpmLimit" min="1000" max="10000" step="100" value="%RPM_LIMIT%" oninput="updateVal('rpmVal', this.value)">
+    
+    <label for="brightness">LED BRIGHTNESS: <span id="brtVal" class="val-display">%BRIGHTNESS%</span></label>
+    <input type="range" id="brightness" min="0" max="255" step="1" value="%BRIGHTNESS%" oninput="updateVal('brtVal', this.value)">
+    
+    <label style="margin-top: 25px; color: #fff;">ECO DRIVE MODE
+      <label class="switch">
+        <input type="checkbox" id="ecoMode" %ECO_MODE_CHECKED%>
+        <span class="slider"></span>
+      </label>
+    </label>
+    
+    <label style="margin-top: 15px; color: #fff;">BUZZER AUDIO
+      <label class="switch">
+        <input type="checkbox" id="buzzerMode" %BUZZER_CHECKED%>
+        <span class="slider"></span>
+      </label>
+    </label>
+    
+    <button onclick="saveSettings()">Apply Configuration</button>
+    <div id="status"></div>
+  </div>
+
+  <!-- DATA LOGGER PANEL -->
+  <div class="card" style="margin-top: 20px;">
+    <h2>Flash Data Logger</h2>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+      <span style="color:#aaa; font-size:12px;">RECORDING STATUS:</span>
+      <div id="logIndicator" style="width: 14px; height: 14px; border-radius: 50%; background-color: #333; box-shadow: 0 0 5px #000;"></div>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button id="btnLogStart" class="btn" style="flex: 1; background: #333; color: #ff5252; border: 1px solid #ff5252; margin-top: 0;" onclick="startLogging()">▶ REC</button>
+      <button id="btnLogStop" class="btn" style="flex: 1; background: #333; color: #fff; border: 1px solid #555; margin-top: 0;" onclick="stopLogging()">⏹ STOP</button>
+    </div>
+    <button class="btn" style="width: 100%; margin-top: 10px; background: #1565C0; font-weight:bold; letter-spacing:1px;" onclick="downloadLogs()">💾 EXPORT CSV</button>
+  </div>
+
+  <div class="card card-timer">
+    <h2>Acceleration Telemetry</h2>
+    <div class="timer-display" id="timeDisplay">0.00s</div>
+    <button class="btn-timer" onclick="startTimer()">Initiate Launch Sequence</button>
+    <div id="timerStatus" style="color:#2196F3;"></div>
+  </div>
+  </div>
+
+  <script>
+    function showCountdownOverlay() {
+      let overlay = document.getElementById('countdownOverlay');
+      let num = document.getElementById('countdownNum');
+      overlay.style.display = 'flex';
+      overlay.style.opacity = '1';
+      num.innerText = "3";
+      num.style.color = "#ff3b3b";
+      num.style.textShadow = "0 0 50px rgba(255, 59, 59, 0.9)";
+      
+      setTimeout(() => num.innerText = "2", 1000);
+      setTimeout(() => num.innerText = "1", 2000);
+      setTimeout(() => {
+        num.innerText = "GO!";
+        num.style.color = "#4CAF50";
+        num.style.textShadow = "0 0 50px rgba(76, 175, 80, 0.9)";
+        setTimeout(() => {
+          overlay.style.opacity = '0';
+          setTimeout(() => overlay.style.display = 'none', 300);
+        }, 800);
+      }, 3000);
+    }
+
+    let t_rpm = 0, c_rpm = 0;
+    let t_load = 0, c_load = 0;
+    let t_volt = 12.0, c_volt = 12.0;
+    let t_tps = 0, c_tps = 0;
+    let t_fuel = 0, c_fuel = 0;
+
+    function drawMountain(ctx, isAccel, colorStr, fillStr, w, baseLine, maxG, step, hist) {
+      ctx.beginPath();
+      for (let i = 0; i < hist.length; i++) {
+        let g = hist[i];
+        let val = isAccel ? (g > 0 ? g : 0) : (g < 0 ? Math.abs(g) : 0);
+        let y = baseLine - (Math.min(val, maxG) / maxG) * (baseLine - 25);
+        if (i === 0) ctx.moveTo(i * step, y);
+        else ctx.lineTo(i * step, y);
+      }
+      ctx.lineTo(w, baseLine); ctx.lineTo(0, baseLine);
+      ctx.fillStyle = fillStr; ctx.fill();
+
+      ctx.beginPath();
+      let isDrawing = false;
+      for (let i = 0; i < hist.length; i++) {
+        let g = hist[i];
+        let val = isAccel ? g : -g;
+        if (val > 0.01) {
+          let y = baseLine - (Math.min(val, maxG) / maxG) * (baseLine - 25);
+          if (!isDrawing) {
+            ctx.moveTo(Math.max(0, i - 1) * step, baseLine);
+            isDrawing = true;
+          }
+          ctx.lineTo(i * step, y);
+        } else {
+          if (isDrawing) {
+            ctx.lineTo(i * step, baseLine); 
+            isDrawing = false;
+          }
+        }
+      }
+      ctx.lineWidth = 2; ctx.strokeStyle = colorStr; ctx.stroke();
+    }
+    let maxRpm = 8000;
+    
+    let gHistory = new Array(120).fill(0);
+    let lastSpeedForG = 0;
+    let lastTimeForG = Date.now();
+    let filteredG = 0;
+
+    function updateVal(id, val) { 
+      document.getElementById(id).innerText = val; 
+      if (id === 'rpmVal') maxRpm = parseInt(val) + 500; 
+    }
+    
+    function saveSettings() {
+      let r = document.getElementById('rpmLimit').value;
+      let b = document.getElementById('brightness').value;
+      let eco = document.getElementById('ecoMode').checked ? 1 : 0;
+      let buz = document.getElementById('buzzerMode').checked ? 1 : 0;
+      maxRpm = parseInt(r) + 500; 
+      
+      let btn = document.querySelector('button');
+      btn.innerText = "TX DATA...";
+      fetch(`/save?rpm=${r}&bright=${b}&eco=${eco}&buzzer=${buz}`)
+        .then(res => res.text())
+        .then(() => {
+          document.getElementById('status').innerText = "CONFIG SYNC OK";
+          document.getElementById('status').style.color = "#4caf50";
+          btn.innerText = "APPLY CONFIGURATION";
+          setTimeout(() => document.getElementById('status').innerText = "", 3000);
+        }).catch(() => {
+          document.getElementById('status').innerText = "SYNC FAILED";
+          document.getElementById('status').style.color = "#ff3b3b";
+          btn.innerText = "APPLY CONFIGURATION";
+        });
+    }
+
+    function startLogging() {
+      fetch('/log/start', { method: 'POST' }).then(r => {
+        if(!r.ok) alert('Błąd: Mems układu Flash zablokowany!');
+      });
+    }
+
+    function stopLogging() {
+      fetch('/log/stop', { method: 'POST' });
+    }
+
+    function downloadLogs() {
+      window.open('/log/download', '_blank');
+    }
+
+    function startTimer() {
+      fetch('/start0100').then(() => {
+        document.getElementById('timerStatus').innerText = "ARMING...";
+        showCountdownOverlay();
+      });
+    }
+
+    function calculateG(speedKmh) {
+      let now = Date.now();
+      let dt = (now - lastTimeForG) / 1000.0;
+      if(dt >= 0.1) { // 10Hz filter 
+        let dv = (speedKmh - lastSpeedForG) / 3.6; // m/s
+        let rawG = (dv / dt) / 9.81;
+        filteredG = (rawG * 0.15) + (filteredG * 0.85); // EMA
+        
+        gHistory.push(filteredG);
+        gHistory.shift();
+        
+        lastSpeedForG = speedKmh;
+        lastTimeForG = now;
+      }
+    }
+
+    function renderCanvas() {
+      c_rpm += (t_rpm - c_rpm) * 0.15;
+      c_load += (t_load - c_load) * 0.15;
+      c_volt += (t_volt - c_volt) * 0.15;
+
+      let cRpm = document.getElementById("gaugeCanvas");
+      if(cRpm) {
+        let ctx = cRpm.getContext("2d");
+        let w = cRpm.width, h = cRpm.height;
+        ctx.clearRect(0, 0, w, h);
+        
+        let cx = w/2, cy = h - 20, r = h - 40;
+        
+        ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0);
+        ctx.lineWidth = 18; ctx.strokeStyle = '#1a1a1a'; ctx.stroke();
+        
+        let fill = Math.min(c_rpm / maxRpm, 1.0);
+        if(fill > 0) {
+          let isEco = document.getElementById('ecoMode').checked;
+          let tempText = document.getElementById('tempDisplay').innerText;
+          let isCold = tempText !== "--" && parseInt(tempText) < 75;
+          
+          let baseLimit = parseInt(document.getElementById('rpmLimit').value);
+          let activeLimit = baseLimit;
+          if (isEco) activeLimit = baseLimit * 0.4;
+          else if (isCold) activeLimit = baseLimit * 0.5;
+
+          let strokeCol, shadowCol;
+
+          if (c_rpm >= activeLimit) {
+            strokeCol = (Math.floor(Date.now() / 80) % 2 === 0) ? '#ff3b3b' : '#220000'; // Miganie synchroniczne 80ms
+            shadowCol = (Math.floor(Date.now() / 80) % 2 === 0) ? '#ff3b3b' : 'transparent';
+          } else if (isEco) {
+            if (c_rpm < 1500) strokeCol = '#4CAF50';
+            else if (c_rpm < 2000) strokeCol = '#FFEB3B';
+            else strokeCol = '#FF3B3B';
+            shadowCol = strokeCol;
+          } else if (isCold) {
+            strokeCol = '#2196F3';
+            shadowCol = strokeCol;
+          } else {
+            let grad = ctx.createLinearGradient(0, cy, w, cy);
+            grad.addColorStop(0.0, '#2196F3');
+            grad.addColorStop(0.35, '#4CAF50');
+            grad.addColorStop(0.65, '#FFEB3B');
+            grad.addColorStop(0.85, '#FF9800');
+            grad.addColorStop(1.0, '#FF3B3B');
+            strokeCol = grad;
+            
+            if (fill < 0.35) shadowCol = '#2196F3';
+            else if (fill < 0.65) shadowCol = '#4CAF50';
+            else if (fill < 0.85) shadowCol = '#FFEB3B';
+            else shadowCol = '#FF3B3B';
+          }
+          ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + (fill * Math.PI));
+          ctx.lineWidth = 18; ctx.strokeStyle = strokeCol; 
+          ctx.shadowBlur = 15; ctx.shadowColor = shadowCol;
+          ctx.stroke(); ctx.shadowBlur = 0; 
+        }
+        
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 52px "Segoe UI"'; ctx.textAlign = 'center';
+        ctx.fillText(Math.round(c_rpm), cx, cy - 10);
+        ctx.fillStyle = '#666'; ctx.font = 'bold 16px "Segoe UI"';
+        ctx.fillText("RPM", cx, cy + 15);
+      }
+
+      c_tps += (t_tps - c_tps) * 0.15;
+      c_fuel += (t_fuel - c_fuel) * 0.15;
+      
+      let cLoad = document.getElementById("loadCanvas");
+      if(cLoad) {
+        let ctx = cLoad.getContext("2d");
+        let w = cLoad.width, h = cLoad.height;
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0,0,w,h);
+        let lFill = Math.min(c_load / 100, 1.0);
+        ctx.fillStyle = '#ff8f00'; ctx.shadowBlur = 8; ctx.shadowColor = '#ff8f00';
+        ctx.fillRect(0,0, w * lFill, h); ctx.shadowBlur = 0;
+      }
+
+      let cVolt = document.getElementById("voltCanvas");
+      if(cVolt) {
+        let ctx = cVolt.getContext("2d");
+        let w = cVolt.width, h = cVolt.height;
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0,0,w,h);
+        let vFill = Math.max(0, Math.min((c_volt - 10) / 5, 1.0)); 
+        ctx.fillStyle = '#4CAF50'; ctx.shadowBlur = 8; ctx.shadowColor = '#4CAF50';
+        ctx.fillRect(0,0, w * vFill, h); ctx.shadowBlur = 0;
+      }
+      
+      let cTps = document.getElementById("tpsCanvas");
+      if(cTps) {
+        let ctx = cTps.getContext("2d");
+        let w = cTps.width, h = cTps.height;
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0,0,w,h);
+        let tFill = Math.min(c_tps / 100, 1.0); 
+        ctx.fillStyle = '#FF9800'; ctx.shadowBlur = 8; ctx.shadowColor = '#FF9800';
+        ctx.fillRect(0,0, w * tFill, h); ctx.shadowBlur = 0;
+      }
+
+      let cFuel = document.getElementById("fuelCanvas");
+      if(cFuel) {
+        let ctx = cFuel.getContext("2d");
+        let w = cFuel.width, h = cFuel.height;
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0,0,w,h);
+        let fFill = Math.min(c_fuel / 100, 1.0); 
+        ctx.fillStyle = '#2196F3'; ctx.shadowBlur = 8; ctx.shadowColor = '#2196F3';
+        ctx.fillRect(0,0, w * fFill, h); ctx.shadowBlur = 0;
+      }
+
+      let cTel = document.getElementById("telemetryCanvas");
+      if(cTel) {
+        let ctx = cTel.getContext("2d");
+        let w = cTel.width, h = cTel.height;
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = "#111"; ctx.fillRect(0,0,w,h);
+        
+        let baseLine = h - 5; 
+        let maxG = 1.5; 
+        let step = w / (gHistory.length - 1);
+        
+        ctx.strokeStyle = "#333"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, baseLine); ctx.lineTo(w, baseLine); ctx.stroke();
+        
+        drawMountain(ctx, true, "#4CAF50", "rgba(76, 175, 80, 0.25)", w, baseLine, maxG, step, gHistory);
+        drawMountain(ctx, false, "#ff3b3b", "rgba(255, 59, 59, 0.25)", w, baseLine, maxG, step, gHistory);
+
+        let currentG = gHistory[gHistory.length-1];
+        ctx.fillStyle = currentG > 0.05 ? "#4CAF50" : (currentG < -0.05 ? "#ff3b3b" : "#888");
+        ctx.font = 'bold 14px "Segoe UI"';
+        ctx.textAlign = 'right';
+        let title = currentG > 0.05 ? "ACCEL " : (currentG < -0.05 ? "BRAKE " : "IDLE ");
+        ctx.fillText(title + Math.abs(currentG).toFixed(2) + "G", w - 10, 25);
+      }
+
+      requestAnimationFrame(renderCanvas);
+    }
+
+    function pollData() {
+      fetch('/status0100')
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById('speedDisplay').innerText = data.speed;
+          document.getElementById('tempDisplay').innerText = data.temp === 999 ? "--" : data.temp;
+          
+          t_rpm = data.rpm !== undefined ? data.rpm : 0;
+          t_load = data.load !== undefined ? data.load : Math.min(100, (t_rpm / 6000) * 100 + Math.random()*8);
+          t_volt = data.volt !== undefined ? data.volt : (13.8 + (Math.random()*0.3 - 0.15));
+          
+          document.getElementById('valLoad').innerText = Math.round(t_load) + "%";
+          document.getElementById('valVolt').innerText = t_volt.toFixed(1) + "V";
+          if(data.tps !== undefined) {
+             t_tps = data.tps; document.getElementById('valTps').innerText = Math.round(t_tps) + "%";
+             document.getElementById('valIat').innerText = data.iat !== 999 ? data.iat : "--";
+             document.getElementById('valMap').innerText = data.map;
+             t_fuel = data.fuel; document.getElementById('valFuel').innerText = Math.round(t_fuel) + "%";
+          }
+          
+          let ind = document.getElementById('logIndicator');
+          let btnS = document.getElementById('btnLogStart');
+          if(ind && data.log !== undefined) {
+             if(data.log === "true") {
+                ind.style.backgroundColor = '#ff5252';
+                ind.style.boxShadow = '0 0 10px #ff5252';
+                btnS.style.background = '#ff5252'; btnS.style.color = '#fff';
+             } else {
+                ind.style.backgroundColor = '#333';
+                ind.style.boxShadow = '0 0 5px #000';
+                btnS.style.background = '#333'; btnS.style.color = '#ff5252';
+             }
+          }
+          
+          calculateG(data.speed);
+
+          let stateDiv = document.getElementById('sysState');
+          let ecoEnabled = document.getElementById('ecoMode').checked;
+          
+          if (ecoEnabled) {
+            stateDiv.className = "sys-state state-eco";
+            stateDiv.innerText = "[ ECO DRIVE AKTYWNY ]";
+          } else if (data.temp < 75 && data.temp !== 999) {
+            stateDiv.className = "sys-state state-cold";
+            let limit = Math.round(parseInt(document.getElementById('rpmLimit').value) * 0.5);
+            stateDiv.innerText = "[ SILNIK ZIMNY - OCHRONA (" + limit + " RPM) ]";
+          } else {
+            stateDiv.className = "sys-state state-normal";
+            stateDiv.innerText = "[ SYSTEM ONLINE - NORMAL ]";
+          }
+
+          if (data.mode === 0) { document.getElementById('timerStatus').innerText = "STANDBY"; } 
+          else if (data.mode === 1) { document.getElementById('timerStatus').innerText = "COUNTDOWN..."; } 
+          else if (data.mode === 2) { document.getElementById('timerStatus').innerText = ">>> LAUNCH READY <<<"; document.getElementById('timeDisplay').innerText = "0.00s"; } 
+          else if (data.mode === 3) { document.getElementById('timerStatus').innerText = "TRACKING..."; document.getElementById('timeDisplay').innerText = (data.current_time / 1000.0).toFixed(2) + "s"; } 
+          else if (data.mode === 4) { document.getElementById('timerStatus').innerText = "FINISHED"; document.getElementById('timerStatus').style.color = "#4caf50"; document.getElementById('timeDisplay').innerText = (data.time / 1000.0).toFixed(2) + "s"; }
+        });
+    }
+    
+    maxRpm = parseInt(document.getElementById('rpmLimit').value) + 500;
+    requestAnimationFrame(renderCanvas);
+    setInterval(pollData, 100); 
+  </script>
+</body>
+</html>
+)rawliteral";
