@@ -147,19 +147,20 @@ void taskCore0(void *pvParameters) {
       if (now - lastOBDRequest >= 15) { 
         uint8_t pidRequest = PID_ENGINE_RPM; 
         bool webActive = (now - lastWebPing < 3000);
+        bool requiresFullData = webActive || isLogging; // Odpytuj wszystko jeśli telefon świeci LUB logujemy dany do CSV
         
         // 1. Zarządzanie parametrami wolnozmiennymi (wyzwalane czasowo)
-        if (now - lastTempRequest >= (webActive ? 500 : 5000)) { 
+        if (now - lastTempRequest >= (requiresFullData ? 500 : 5000)) { 
           static int slowSeq = 0;
           // Rotacja parametrów dodatkowych, aby nie zapchać magistrali
           switch (slowSeq) {
-            case 0: pidRequest = PID_COOLANT_TEMP; break; // Coolant zawsze czytamy, nawet bez aktywnego WWW
-            case 1: pidRequest = webActive ? PID_ENGINE_LOAD : PID_ENGINE_RPM; break;
-            case 2: pidRequest = webActive ? PID_BATTERY_VOLT : PID_ENGINE_RPM; break;
-            case 3: pidRequest = webActive ? PID_IAT_TEMP : PID_ENGINE_RPM; break;
-            case 4: pidRequest = webActive ? PID_MAP_PRESSURE : PID_ENGINE_RPM; break;
-            case 5: pidRequest = webActive ? PID_FUEL_LEVEL : PID_ENGINE_RPM; break;
-            case 6: pidRequest = webActive ? PID_THROTTLE_POS : PID_ENGINE_RPM; break;
+            case 0: pidRequest = PID_COOLANT_TEMP; break; // Coolant zawsze czytamy, nawet bez aktywnego WWW, jako zabezpieczenie
+            case 1: pidRequest = requiresFullData ? PID_ENGINE_LOAD : PID_ENGINE_RPM; break;
+            case 2: pidRequest = requiresFullData ? PID_BATTERY_VOLT : PID_ENGINE_RPM; break;
+            case 3: pidRequest = requiresFullData ? PID_IAT_TEMP : PID_ENGINE_RPM; break;
+            case 4: pidRequest = requiresFullData ? PID_MAP_PRESSURE : PID_ENGINE_RPM; break;
+            case 5: pidRequest = requiresFullData ? PID_FUEL_LEVEL : PID_ENGINE_RPM; break;
+            case 6: pidRequest = requiresFullData ? PID_THROTTLE_POS : PID_ENGINE_RPM; break;
             default: pidRequest = PID_COOLANT_TEMP; break;
           }
         
@@ -167,12 +168,12 @@ void taskCore0(void *pvParameters) {
           lastTempRequest = now;
         } 
         else {
-          // 2. Szybkozmienne: RPM/Speed 50/50 (web lub pomiar) albo 100% RPM (offline)
-          if (webActive || currentMode == MODE_0_100_MEASURING || currentMode == MODE_0_100_WAITING_FOR_LAUNCH) {
+          // 2. Szybkozmienne: RPM/Speed 50/50 (logowanie webD/CSV lub pomiar) albo 100% RPM (offline/eco)
+          if (requiresFullData || currentMode == MODE_0_100_MEASURING || currentMode == MODE_0_100_WAITING_FOR_LAUNCH) {
             obdSeq = (obdSeq + 1) % 2;
             pidRequest = (obdSeq == 0) ? PID_ENGINE_RPM : PID_VEHICLE_SPEED;
           } else {
-            pidRequest = PID_ENGINE_RPM; // Nikt nie patrzy -> tylko obroty dla LEDów
+            pidRequest = PID_ENGINE_RPM; // Nikt nie patrzy i nic nie logujemy -> tylko obroty dla LEDów
           }
         }
         
