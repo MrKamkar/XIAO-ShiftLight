@@ -94,15 +94,15 @@ void handleShiftLightLogic(uint32_t now) {
       CRGB flashColor = CRGB::Red; 
       for(int i=0; i<NUM_LEDS; i++) targetLeds[i] = flashColor;
       
-      // Ciągły dźwięk przy limicie obrotów
-      if (buzzerEnabled && !isCold && activeLimit > 0) digitalWrite(BUZZER_PIN, HIGH);
+      // Ciągły dźwięk przy limicie obrotów (W ECO działa zawsze, w sporcie tylko po rozgrzaniu)
+      if (buzzerEnabled && (ecoMode || !isCold) && activeLimit > 0) digitalWrite(BUZZER_PIN, HIGH);
       else digitalWrite(BUZZER_PIN, LOW);
     } else {
       digitalWrite(BUZZER_PIN, LOW);
     }
   } else {
-    // Różna częstość dźwięku przed zmianą biegu
-    if (buzzerEnabled && !isCold && activeLimit > 0) {
+    // Różna częstość dźwięku przed zmianą biegu (W ECO działa zawsze, w sporcie tylko po rozgrzaniu)
+    if (buzzerEnabled && (ecoMode || !isCold) && activeLimit > 0) {
       float percent = (float)currentRPM / (float)activeLimit;
       if (percent >= 0.95) {
         if ((now / 50) % 2 == 0) digitalWrite(BUZZER_PIN, HIGH); // Szybki rytm
@@ -135,13 +135,13 @@ void handleShiftLightLogic(uint32_t now) {
         CRGB baseColor = palette[i]; 
         
         // Specjalne kolory dla trybów
-        if (isCold) {
-          baseColor = CRGB::Blue; // Wymuś stały na maksa Zimny Niebieski, znany z zegarów BMW M-Pakiet
-        } else if (ecoMode) {
-          // Tryb ECO: Inne kolory diod wspomagające oszczędzanie paliwa
+        if (ecoMode) {
+          // Tryb ECO: Inne kolory diod wspomagające oszczędzanie paliwa (Priorytet nad Cold)
           if (currentRPM < 1500) baseColor = CRGB::Green;       // Zbyt niskie obroty (zmień bieg w dół)
           else if (currentRPM < 2000) baseColor = CRGB::Yellow; // Czas na zmianę biegu w górę
           else baseColor = CRGB::Red;                           // Za wysokie obroty dla trybu ECO
+        } else if (isCold) {
+          baseColor = CRGB::Blue; // Wymuś stały na maksa zimny niebieski, znany z zegarów BMW M-Pakiet
         }
         
         // Włączanie odpowiedniej ilości diod na pasku
