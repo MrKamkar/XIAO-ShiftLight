@@ -52,15 +52,19 @@ void taskCore0(void *pvParameters) {
   int obdSeq = 0;
   bool waitingForResponse = false; // Flaga oczekiwania na odpowiedź z ECU
 
+  // Zmienne do obliczania siły G z delty prędkości (pełna częstotliwość CAN)
+  float lastSpeedForG = 0;
+  uint32_t lastTimeForG = millis();
+
   while (true) {
     // Serwer musi działać tu, ponieważ jest on obsługiwany przez rdzeń 0
     handleWebServerClient();
     
-    // Logika wysyłania danych do kolejki (co 100ms)
-    if (isLogging && (millis() - lastLogTime >= 100)) {
+    // Logika wysyłania danych do kolejki (co 40ms = 25 Hz — pełna rozdzielczość G-force)
+    if (isLogging && (millis() - lastLogTime >= 40)) {
       TelemetryData data = {
         millis(), currentRPM, currentSpeed, currentTemp, currentLoad, 
-        currentVolt, currentIAT, currentTPS, currentMAP, currentFuel
+        currentVolt, currentIAT, currentTPS, currentMAP, currentFuel, currentGForce
       };
       // Wysyłamy do kolejki; jeśli pełna (np. Flash zajęty), odrzucamy paczkę
       xQueueSend(logQueue, &data, 0); 
@@ -89,8 +93,19 @@ void taskCore0(void *pvParameters) {
                 currentRPM = ((rx_msg.data[3] * 256) + rx_msg.data[4]) / 4;
                 lastRPMTime = millis(); // Odświeżenie znacznika fail-safe
                 break;
-              case PID_VEHICLE_SPEED:
+              case PID_VEHICLE_SPEED: {
                 currentSpeed = rx_msg.data[3];
+
+                // Obliczanie siły G z delty prędkości (uruchamiane przy każdym odczycie Speed z CAN)
+                uint32_t gNow = millis();
+                uint32_t gDt = gNow - lastTimeForG;
+                if (gDt >= 40) { // Min 40ms między próbkami (~25 Hz max)
+                  float dv = ((float)currentSpeed - lastSpeedForG) / 3.6f; // km/h → m/s
+                  float rawG = (dv / (gDt / 1000.0f)) / 9.81f;
+                  currentGForce = (rawG * 0.3f) + (currentGForce * 0.7f); // EMA smoothing
+                  lastSpeedForG = currentSpeed;
+                  lastTimeForG = gNow;
+                }
 
                 // Logika Drag Timera 0-100 km/h
                 if (currentMode == MODE_0_100_WAITING_FOR_LAUNCH && currentSpeed > 0) {
@@ -101,6 +116,7 @@ void taskCore0(void *pvParameters) {
                   currentMode = MODE_0_100_DONE;
                 }
                 break;
+              }
                 
               // Parametry wolnozmienne
               case PID_COOLANT_TEMP: currentTemp = rx_msg.data[3] - 40; break;
@@ -143,29 +159,20 @@ void taskCore0(void *pvParameters) {
             case 3: pidRequest = webActive ? PID_IAT_TEMP : PID_ENGINE_RPM; break;
             case 4: pidRequest = webActive ? PID_MAP_PRESSURE : PID_ENGINE_RPM; break;
             case 5: pidRequest = webActive ? PID_FUEL_LEVEL : PID_ENGINE_RPM; break;
+            case 6: pidRequest = webActive ? PID_THROTTLE_POS : PID_ENGINE_RPM; break;
             default: pidRequest = PID_COOLANT_TEMP; break;
           }
         
-          slowSeq = (slowSeq + 1) % 6;
+          slowSeq = (slowSeq + 1) % 7;
           lastTempRequest = now;
         } 
         else {
-          // 2. Logika dla parametrów szybkozmiennych (zależna od trybu urządzenia)
-          if (currentMode == MODE_0_100_MEASURING || currentMode == MODE_0_100_WAITING_FOR_LAUNCH) {
-            // Podczas pomiaru 0-100: przeplatamy RPM i Prędkość (50/50)
+          // 2. Szybkozmienne: RPM/Speed 50/50 (web lub pomiar) albo 100% RPM (offline)
+          if (webActive || currentMode == MODE_0_100_MEASURING || currentMode == MODE_0_100_WAITING_FOR_LAUNCH) {
             obdSeq = (obdSeq + 1) % 2;
-            pidRequest = (obdSeq == 0) ? PID_ENGINE_RPM : PID_VEHICLE_SPEED; 
-          }
-          else if (!webActive) { 
-            // Tryb ECO: Nikt nie patrzy na stronę -> pytamy TYLKO o obroty dla LEDów
-            pidRequest = PID_ENGINE_RPM; 
-          } 
-          else {
-            // Tryb FULL: Ktoś patrzy na zegary -> przeplatamy RPM, Speed i Przepustnicę
-            obdSeq = (obdSeq + 1) % 4;
-            if (obdSeq == 0 || obdSeq == 2) pidRequest = PID_ENGINE_RPM;
-            else if (obdSeq == 1) pidRequest = PID_VEHICLE_SPEED;
-            else pidRequest = PID_THROTTLE_POS;
+            pidRequest = (obdSeq == 0) ? PID_ENGINE_RPM : PID_VEHICLE_SPEED;
+          } else {
+            pidRequest = PID_ENGINE_RPM; // Nikt nie patrzy -> tylko obroty dla LEDów
           }
         }
         

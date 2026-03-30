@@ -46,6 +46,7 @@ extern volatile int currentIAT;      // Temperatura powietrza dolotowego (Intake
 extern volatile int currentTPS;      // Pozycja przepustnicy (Throttle)
 extern volatile int currentMAP;      // Ciśnienie w dolocie (Manifold Pressure)
 extern volatile int currentFuel;     // Poziom paliwa w baku
+extern volatile float currentGForce; // Siła G (przyspieszenie podłużne, liczone z delty prędkości)
 
 // Status timera i pracy
 extern volatile DeviceMode currentMode;

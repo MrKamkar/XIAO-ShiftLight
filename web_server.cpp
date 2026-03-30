@@ -51,13 +51,13 @@ void handleAccelerationTest() {
 void handleAccelerationStatus() {
   lastWebPing = millis(); // Odświeża status sesji, co zdejmuje filtrację zapytań CAN
   
-  char jsonBuffer[350]; // Bufor na wszystkie potrzebne dane JSON
+  char jsonBuffer[380]; // Bufor na wszystkie potrzebne dane JSON
   uint32_t cTime = (currentMode == MODE_0_100_MEASURING) ? (millis() - dragTimerStart) : 0; // Oblicza czas rzeczywisty (delta) od startu pomiaru do teraz
   
   // Zapisanie wszystkich wartości ulotnych ze środowiska pracy Kernelowego w jeden elegancki format
   snprintf(jsonBuffer, sizeof(jsonBuffer),
-           "{\"mode\":%d,\"speed\":%d,\"temp\":%d,\"load\":%d,\"volt\":%.1f,\"rpm\":%d,\"time\":%lu,\"current_time\":%lu,\"iat\":%d,\"tps\":%d,\"map\":%d,\"fuel\":%d,\"log\":%s}",
-           currentMode, currentSpeed, currentTemp, currentLoad, currentVolt, currentRPM, timerResult, cTime, currentIAT, currentTPS, currentMAP, currentFuel, isLogging ? "true" : "false");
+           "{\"mode\":%d,\"speed\":%d,\"temp\":%d,\"load\":%d,\"volt\":%.1f,\"rpm\":%d,\"time\":%lu,\"current_time\":%lu,\"iat\":%d,\"tps\":%d,\"map\":%d,\"fuel\":%d,\"gforce\":%.2f,\"log\":%s}",
+           currentMode, currentSpeed, currentTemp, currentLoad, currentVolt, currentRPM, timerResult, cTime, currentIAT, currentTPS, currentMAP, currentFuel, currentGForce, isLogging ? "true" : "false");
            
   server.send(200, "application/json", jsonBuffer); // Wysłanie danych w formacie JSON do przeglądarki
 }

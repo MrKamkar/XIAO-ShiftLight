@@ -13,7 +13,7 @@ void initDataLogger() {
 void startDataLog() {
   File file = LittleFS.open("/telemetry.csv", "w");
   if(file) {
-    file.println("Time(ms),RPM,Speed(km/h),Temp(C),Load(%),Volt(V),IAT(C),TPS(%),MAP(kPa),Fuel(%)");
+    file.println("Time(ms),RPM,Speed(km/h),Temp(C),Load(%),Volt(V),IAT(C),TPS(%),MAP(kPa),Fuel(%),G(g)");
     file.close();
     isLogging = true;
   }
@@ -36,10 +36,10 @@ void taskLogging(void *pvParameters) {
         // Otwórz plik tylko raz (trzymaj otwarty dopóki logowanie trwa)
         if (!file) file = LittleFS.open("/telemetry.csv", "a");
         if (file) {
-          char csvLine[128];
-          snprintf(csvLine, sizeof(csvLine), "%lu,%d,%d,%d,%d,%.2f,%d,%d,%d,%d\n", 
+          char csvLine[140];
+          snprintf(csvLine, sizeof(csvLine), "%lu,%d,%d,%d,%d,%.2f,%d,%d,%d,%d,%.2f\n", 
                    data.timestamp, data.rpm, data.speed, data.temp, data.load, 
-                   data.volt, data.iat, data.tps, data.map, data.fuel);
+                   data.volt, data.iat, data.tps, data.map, data.fuel, data.gforce);
           file.print(csvLine);
           
           // Flush co 1s (zabezpieczenie przed utratą danych przy nagłym odcięciu zasilania)

@@ -26,6 +26,7 @@ volatile int currentIAT = 999;
 volatile int currentTPS = 0;
 volatile int currentMAP = 0;
 volatile int currentFuel = 0;
+volatile float currentGForce = 0;
 
 volatile DeviceMode currentMode = MODE_WELCOME;
 volatile uint32_t dragTimerStart = 0;

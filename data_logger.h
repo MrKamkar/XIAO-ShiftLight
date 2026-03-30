@@ -13,6 +13,7 @@ struct TelemetryData {
   int tps;
   int map;
   int fuel;
+  float gforce;
 };
 
 // Inicjalizacja systemu plików i start nowego logu
