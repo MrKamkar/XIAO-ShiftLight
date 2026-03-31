@@ -14,7 +14,7 @@ WebServer server(80); // Tworzy obiekt serwera WWW na porcie 80
  // Wczytuje HTML z pliku index_html.h i podmienia znaczniki na aktualne wartości zmiennych
 void handleRoot() {
   String html;
-  html.reserve(sizeof(INDEX_HTML) + 40); // Jednokrotna alokacja zamiast wielokrotnych re-alokacji
+  html.reserve(sizeof(INDEX_HTML) + 60); // Jednokrotna alokacja zamiast wielokrotnych re-alokacji
   html = INDEX_HTML;
   html.replace("%RPM_LIMIT%", String(shiftLimit));
   html.replace("%BRIGHTNESS%", String(brightness)); 

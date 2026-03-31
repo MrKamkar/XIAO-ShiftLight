@@ -228,11 +228,14 @@ void updateLEDs() {
   if (currentMode == MODE_WELCOME) {
     handleWelcomeSequence(now);
   } else if (isError && currentMode != MODE_0_100_COUNTDOWN) {
-    // beatsin8(BPM, min, max) – tworzy idealnie gładkie przejście 0-255-0
-    uint8_t breath = beatsin8(30, 0, 255); 
-    CRGB errorColor = CRGB::Red;
-    errorColor.nscale8(breath);
-    for(int i=0; i<NUM_LEDS; i++) targetLeds[i] = errorColor;
+    uint8_t brt = max((int)brightness, 1);
+    uint8_t safeMin = min(200, max(40, 1280 / brt));
+    uint8_t breath = beatsin8(30, safeMin, 255);
+    CRGB errorColor = CRGB(breath, 0, 0);
+    for(int i=0; i<NUM_LEDS; i++) {
+      targetLeds[i] = errorColor;
+      leds[i] = errorColor; // Bezpośredni zapis — beatsin8 sam daje gładką sinusoidę, blending tylko dodaje szumy
+    }
   } else if (isDataStale && currentMode != MODE_0_100_COUNTDOWN) {
     // Dane lekko spóźnione (500ms-1000ms) - po prostu wygaszamy
   } else if (currentMode == MODE_0_100_COUNTDOWN) {
