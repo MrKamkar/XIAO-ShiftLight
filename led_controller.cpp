@@ -40,7 +40,7 @@ void handleCountdownSequence(uint32_t now) {
   
   // Zapisanie czasu startu odliczania (punkt zerowy dla stopera)
   if (countdownStep == 0) { 
-    countdownTimer = now; 
+    countdownTimer = now;
     countdownStep = 1; 
   }
   
@@ -136,7 +136,7 @@ void handleShiftLightLogic(uint32_t now) {
     
     // Logika wyświetlania obrotów (Shift Light) na pasku LED
     if (smoothedRPM > 100) { // Próg wyświetlania, żeby pasek nie świecił na samym zapłonie
-      int startRpm = ecoMode ? 1000 : 0;
+      int startRpm = 1000; // Zawsze zaczynamy od 1000 RPM, pomijamy jałowe obroty
       
       float range = (float)(activeLimit - startRpm);
       if (range <= 0) range = 1;
