@@ -23,4 +23,5 @@ struct __attribute__((packed)) TelemetryPacket {
   uint8_t fuel;           // Paliwo %
   float gforce;           // Siła G (4 bajty)
   uint8_t logging;        // Flaga zapisu (0/1)
+  uint8_t hz;             // Częstotliwość OBD (Hz)
 };

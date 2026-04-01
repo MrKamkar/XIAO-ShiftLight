@@ -186,25 +186,23 @@ void handleWelcomeSequence(uint32_t now) {
   const uint32_t duration = 3000; // Długość animacji powitalnej
 
   if (elapsed < duration) {
-    float progress = (float)elapsed / (float)duration; 
-    // Fala przelatuje od -2 do NUM_LEDS + 2 dla gładkiego wejścia i wyjścia
-    float headPos = progress * (NUM_LEDS + 4) - 2; 
+    // Próg od 0 do 255 dla całości trwania animacji
+    uint8_t pos = (elapsed * 255) / duration; 
+    // Przesunięcie fali (mapujemy 0-255 na zakres od -2 do 10 dla płynnego wejścia/wyjścia)
+    int16_t head = map(pos, 0, 255, -2, NUM_LEDS + 2); 
     
     for (int i = 0; i < NUM_LEDS; i++) {
-        float distance = abs((float)i - headPos);
-        
-        if (distance < 1.5) {
-          // Centrum fali (ok. 3 diody szerokości) => pełny kolor z palety
+        int16_t dist = abs(i - head);
+        if (dist == 0) {
           targetLeds[i] = palette[i];
-          // Dodatkowy błysk w samym centrum
-          if (distance < 0.5) targetLeds[i].maximizeBrightness();
-        } else if (distance < 3.0) {
-          // Krawędzie fali (fall-off) => Płynne wygaszanie kolorów
-          // Używamy ułamkowego blendowania zamiast nscale8 dla większej stabilności
-          uint8_t fade = (3.0 - distance) * 80; 
-          targetLeds[i] = blend(CRGB::Black, palette[i], fade);
+          targetLeds[i].maximizeBrightness();
+        } else if (dist == 1) {
+          targetLeds[i] = palette[i];
+          targetLeds[i].nscale8(160); // 60% jasności dla krawędzi fali
+        } else if (dist == 2) {
+          targetLeds[i] = palette[i];
+          targetLeds[i].nscale8(60);  // 25% jasności dla zanikania
         } else {
-          // Reszta paska pozostaje ciemna
           targetLeds[i] = CRGB::Black;
         }
     }
@@ -212,6 +210,20 @@ void handleWelcomeSequence(uint32_t now) {
     // Koniec ceremonii - przechodzimy do głównego zadania
     currentMode = MODE_SHIFT_LIGHT;
     welcomeTimer = 0; 
+  }
+}
+
+// Obsługa wizualnego potwierdzenia zapisu (wszystkie diody na zielono przez 1s)
+void handleLEDTestSequence(uint32_t now) {
+  static uint32_t testTimer = 0;
+  if(testTimer == 0) testTimer = now;
+  
+  if (now - testTimer < 1000) {
+    for(int i = 0; i < NUM_LEDS; i++) targetLeds[i] = CRGB::Green;
+  } else {
+    // Powrót do normalnego trybu
+    currentMode = MODE_SHIFT_LIGHT;
+    testTimer = 0; 
   }
 }
 
@@ -240,6 +252,8 @@ void updateLEDs() {
     // Dane lekko spóźnione (500ms-1000ms) - po prostu wygaszamy
   } else if (currentMode == MODE_0_100_COUNTDOWN) {
     handleCountdownSequence(now);
+  } else if (currentMode == MODE_LED_TEST) {
+    handleLEDTestSequence(now);
   } else {
     // Normalna logika Shift Light
     handleShiftLightLogic(now);

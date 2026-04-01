@@ -29,6 +29,7 @@
       <a href="viewer.html" class="btn nav-link"><span class="icon">📈</span> <span class="nav-text">Telemetry
           Viewer</span></a>
       <button id="btnConnect" class="btn btn-primary btn-connect"><span class="connect-text">BLE Connect</span></button>
+      <span id="obdHz" class="obd-hz">0 Hz</span>
       <div id="connStatusDot" class="pulse-offline dot-margin"></div>
     </div>
   </header>
@@ -121,7 +122,17 @@
           <button class="btn btn-rec flex-1" id="btnLogStart" onclick="startLogging()">▶ REC</button>
           <button class="btn btn-stop flex-1" id="btnLogStop" onclick="stopLogging()">⏹ Stop</button>
         </div>
-        <p class="logger-info">Pobieranie plików nie jest dostępne po łączu BLE. Użyj USB.</p>
+        <div class="flash-usage" id="flashUsageContainer">
+          <div class="flash-usage-label">Pamięć Flash: <span id="flashPerc">0%</span></div>
+          <div class="flash-usage-bar"><div id="flashFill" class="flash-usage-fill"></div></div>
+        </div>
+        <div class="dl-container">
+          <button class="btn btn-primary btn-export mt-8" onclick="downloadLog()" style="width: 100%;">Pobierz Logi (CSV) - BT</button>
+          <div class="dl-progress-bar" id="dlProgressBar" style="display:none;">
+            <div class="dl-progress-fill" id="dlProgressFill"></div>
+            <span class="dl-progress-text" id="dlProgressText">0%</span>
+          </div>
+        </div>
       </div>
 
       <div class="card settings-card">

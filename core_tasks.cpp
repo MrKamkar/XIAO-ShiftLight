@@ -8,6 +8,8 @@
 #include "led_controller.h"
 #include "obd_pids.h"
 
+volatile uint8_t obdHz = 0; // Definicja zmiennej częstotliwości OBD
+
 void taskCore0(void *pvParameters) {
   // Powołanie struktury serwera BLE oraz charakterystyk GATT
   setupBLEServer();
@@ -50,6 +52,8 @@ void taskCore0(void *pvParameters) {
   uint32_t lastTimeForG = millis();
 
   uint32_t lastBleTime = 0;
+  uint32_t lastHzTime = 0;
+  uint16_t hzCount = 0;
 
   while (true) {
     uint32_t now = millis();
@@ -87,6 +91,7 @@ void taskCore0(void *pvParameters) {
             
             // Otrzymaliśmy poprawną odpowiedź OBD, więc czyścimy flagę oczekiwania
             waitingForResponse = false; 
+            hzCount++; // Zwiększ licznik otrzymanych odpowiedzi OBD-II
 
             switch (rx_msg.data[2]) {
               case PID_ENGINE_RPM:
@@ -102,7 +107,11 @@ void taskCore0(void *pvParameters) {
                 if (gDt >= 40) { // Min 40ms między próbkami (~25 Hz max)
                   float dv = ((float)currentSpeed - lastSpeedForG) / 3.6f; // km/h → m/s
                   float rawG = (dv / (gDt / 1000.0f)) / 9.81f;
-                  currentGForce = (rawG * 0.3f) + (currentGForce * 0.7f); // EMA smoothing
+                  // Dynamiczny filtr EMA: szybka reakcja na duże zmiany (np. hamowanie), płynność przy małych
+                  float diff = fabsf(rawG - currentGForce);
+                  float alpha = 0.15f + (diff * 0.4f); 
+                  if (alpha > 0.65f) alpha = 0.65f; 
+                  currentGForce = (rawG * alpha) + (currentGForce * (1.0f - alpha)); 
                   lastSpeedForG = currentSpeed;
                   lastTimeForG = gNow;
                 }
@@ -144,7 +153,7 @@ void taskCore0(void *pvParameters) {
     bool pollTimeout = (now - lastOBDRequest >= 50);
 
     if (!waitingForResponse || pollTimeout) {
-      if (now - lastOBDRequest >= 15) { 
+      if (now - lastOBDRequest >= 10) { 
         uint8_t pidRequest = PID_ENGINE_RPM; 
         bool appActive = bleConnected; // Interfejs użytkownika jest podpięty przez BLE
         bool requiresFullData = appActive || isLogging; // Odpytuj wszystko jeśli telefon połączony lub logujemy dane do CSV
@@ -181,6 +190,13 @@ void taskCore0(void *pvParameters) {
         lastOBDRequest = now;
         waitingForResponse = true; // Uzbrajamy oczekiwanie na nową ramkę
       }
+    }
+    
+    // Obliczanie Hz raz na sekundę
+    if (now - lastHzTime >= 1000) {
+      obdHz = hzCount;
+      hzCount = 0;
+      lastHzTime = now;
     }
     
     vTaskDelay(pdMS_TO_TICKS(1)); 

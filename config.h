@@ -24,7 +24,8 @@ enum DeviceMode {
   MODE_0_100_COUNTDOWN = 2, 
   MODE_0_100_WAITING_FOR_LAUNCH = 3, 
   MODE_0_100_MEASURING = 4, 
-  MODE_0_100_DONE = 5 
+  MODE_0_100_DONE = 5,
+  MODE_LED_TEST = 6
 };
 
 // Zmienne konfiguracyjne z Flash (extern)
@@ -62,3 +63,4 @@ extern volatile uint32_t dragTimerStart;
 extern volatile uint32_t timerResult;
 extern volatile bool isLogging;
 extern volatile uint32_t lastRPMTime; // Czas ostatniej poprawnej aktualizacji RPM
+extern volatile uint8_t obdHz;        // Częstotliwość OBD (Hz)

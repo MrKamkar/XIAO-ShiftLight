@@ -2,17 +2,17 @@
 #include <Arduino.h>
 
 // System logowania i kolejkowania danych
-struct TelemetryData {
+struct __attribute__((packed)) TelemetryData {
   uint32_t timestamp;
-  int rpm;
-  int speed;
-  int temp;
-  int load;
+  int32_t rpm;
+  int32_t speed;
+  int32_t temp;
+  int32_t load;
   float volt;
-  int iat;
-  int tps;
-  int map;
-  int fuel;
+  int32_t iat;
+  int32_t tps;
+  int32_t map;
+  int32_t fuel;
   float gforce;
 };
 

@@ -9,12 +9,15 @@ void initDataLogger() {
   LittleFS.begin(true); // Parametr 'true' automatycznie formatuje przy pierwszym uruchomieniu
 }
 
-// Nadpisanie pliku z telemetrią i rozpoczęcie zapisu
+// Nadpisanie pliku i rozpoczęcie zapisu binarnego
 void startDataLog() {
-  File file = LittleFS.open("/telemetry.csv", "w");
+  if (LittleFS.exists("/telemetry.bin")) {
+    LittleFS.remove("/telemetry.bin");
+  }
+  
+  File file = LittleFS.open("/telemetry.bin", "w");
   if(file) {
-    file.println("Time(ms),RPM,Speed(km/h),Temp(C),Load(%),Volt(V),IAT(C),TPS(%),MAP(kPa),Fuel(%),G(g)");
-    file.close();
+    file.close(); // Tworzymy plik, dane dopisujemy w tasku
     isLogging = true;
   }
 }
@@ -28,22 +31,35 @@ void taskLogging(void *pvParameters) {
   TelemetryData data;
   File file;
   uint32_t lastFlush = 0;
+  uint16_t checkCounter = 0;
+  bool isSpaceFull = false;
 
   while (true) {
     // Czekaj na dane w kolejce (blokuje zadanie, gdy nie ma nic do zapisu)
     if (xQueueReceive(logQueue, &data, portMAX_DELAY) == pdPASS) {
       if (isLogging) {
         // Otwórz plik tylko raz (trzymaj otwarty dopóki logowanie trwa)
-        if (!file) file = LittleFS.open("/telemetry.csv", "a");
+        if (!file) file = LittleFS.open("/telemetry.bin", "a");
         if (file) {
-          char csvLine[140];
-          snprintf(csvLine, sizeof(csvLine), "%lu,%d,%d,%d,%d,%.2f,%d,%d,%d,%d,%.2f\n", 
-                   data.timestamp, data.rpm, data.speed, data.temp, data.load, 
-                   data.volt, data.iat, data.tps, data.map, data.fuel, data.gforce);
-          file.print(csvLine);
+          // Sprawdzenie wolnego miejsca (co 100 rekordów, by nie przeciążać LittleFS)
+          if (checkCounter++ >= 100) {
+            checkCounter = 0;
+            size_t freeSpace = LittleFS.totalBytes() - LittleFS.usedBytes();
+            if (freeSpace < 102400) isSpaceFull = true; 
+          }
+
+          if (isSpaceFull) { 
+            isLogging = false; 
+            file.close(); 
+            isSpaceFull = false; 
+            continue; 
+          }
+
+          // Zapis binarny (raw struct dump)
+          file.write((const uint8_t*)&data, sizeof(TelemetryData));
           
-          // Flush co 1s (zabezpieczenie przed utratą danych przy nagłym odcięciu zasilania)
-          if (millis() - lastFlush > 1000) {
+          // Flush co 5s (optymalizacja żywotności Flash, przy zachowaniu bezpieczeństwa danych)
+          if (millis() - lastFlush > 5000) {
             file.flush();
             lastFlush = millis();
           }

@@ -14,7 +14,7 @@ const RX_CHAR_UUID = "beb5483e-36e2-4688-b7f5-ea07361b26a8";
 
 // Buforowanie i reasemblacja danych (obsługa fragmentacji MTU)
 let receiveBuffer = "";
-let binBuffer = new Uint8Array(30);
+let binBuffer = new Uint8Array(31);
 let binIndex = 0;
 const textDecoder = new TextDecoder("utf-8");
 const textEncoder = new TextEncoder();
@@ -29,7 +29,7 @@ let maxRpm = 8000;
 let gHistory = new Array(120).fill(0);
 let lastSpeedForG = 0, lastTimeForG = Date.now(), filteredG = 0;
 
-// UI Elements Cache
+// Cache elementów interfejsu (DOM)
 const UI = {
   btnConnect: null,
   dotStatus: null,
@@ -58,12 +58,29 @@ const UI = {
   gaugeFuel: null,
   countdownOverlay: null,
   countdownNum: null,
-  btnConnectText: null
+  btnConnectText: null,
+  dlProgressBar: null,
+  dlProgressFill: null,
+  dlProgressText: null,
+  flashFill: null,
+  flashPerc: null,
+  btnSaveSettings: null,
+  btnLogStop: null,
+  obdHz: null
 };
+
+let dlBuffer = [];
+let dlExpectedSize = 0;
+let dlReceivedSize = 0;
 
 let lastData = {};
 let rpmGradient = null;
 let cachedRpmLimit = 6000;
+let cachedEcoMode = false;
+
+// Zmienne Peak Hold (maksymalne obroty)
+let peakRpm = 0;
+let peakRpmTime = 0;
 
 // ==========================================
 // 1. POŁĄCZENIE BLUETOOTH
@@ -93,11 +110,11 @@ async function connectBLE() {
     await txCharacteristic.startNotifications();
     txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
 
-    UI.btnConnectText.innerText = "Disconnect";
+    UI.btnConnectText.textContent = "Disconnect";
     UI.btnConnect.classList.replace("btn-primary", "btn-stop");
     UI.dotStatus.className = "pulse dot-margin";
     UI.sysState.className = "sys-state state-normal";
-    UI.sysState.innerText = "🔗 BLE Connected — Oczekiwanie na CAN";
+    UI.sysState.textContent = "🔗 BLE Connected — Oczekiwanie na CAN";
 
     setTimeout(() => { sendCmd("cmd:req_conf"); }, 500);
   } catch (error) {
@@ -112,11 +129,11 @@ function disconnectBLE() {
 
 function onDisconnected() {
   console.log("Urządzenie Bluetooth rozłączone");
-  UI.btnConnectText.innerText = "BLE Connect";
+  UI.btnConnectText.textContent = "BLE Connect";
   UI.btnConnect.classList.replace("btn-stop", "btn-primary");
   UI.dotStatus.className = "pulse-offline dot-margin";
   UI.sysState.className = "sys-state state-offline";
-  UI.sysState.innerText = "Link Offline... Złącz BLE by rozpocząć.";
+  UI.sysState.textContent = "Link Offline... Złącz BLE by rozpocząć.";
 }
 
 // ==========================================
@@ -131,12 +148,21 @@ function handleNotifications(event) {
 
   if (binIndex > 0 || value.getUint8(0) === 0xBB) {
     for (let i = 0; i < dataLen; i++) {
-      if (binIndex < 30) binBuffer[binIndex++] = value.getUint8(i);
+      if (binIndex < 31) binBuffer[binIndex++] = value.getUint8(i);
     }
-    if (binIndex === 30) {
+    if (binIndex === 31) {
       parseBinaryTelemetry(new DataView(binBuffer.buffer));
       binIndex = 0;
     }
+    return;
+  }
+
+  // Obsługa pobierania plików (prefiks 0xCC)
+  if (value.getUint8(0) === 0xCC) {
+    const data = new Uint8Array(value.buffer, value.byteOffset + 1, dataLen - 1);
+    dlBuffer.push(data);
+    dlReceivedSize += data.length;
+    updateDownloadProgress();
     return;
   }
 
@@ -163,35 +189,36 @@ function parseBinaryTelemetry(view) {
       map: view.getUint16(22, true),
       fuel: view.getUint8(24),
       gforce: view.getFloat32(25, true),
-      log: view.getUint8(29) === 1
+      log: view.getUint8(29) === 1,
+      hz: view.getUint8(30)
     };
     applyTelemetryToUI(data);
   } catch (e) { console.error("BIN Parse Error:", e); binIndex = 0; }
 }
 
 function applyTelemetryToUI(data) {
-  if (lastData.speed !== data.speed) UI.speed.innerText = data.speed;
+  if (data.hz !== undefined) UI.obdHz.textContent = data.hz + " Hz";
+  if (lastData.speed !== data.speed) UI.speed.textContent = data.speed;
 
   const curTemp = data.temp !== undefined ? data.temp : (lastData.temp !== undefined ? lastData.temp : 999);
-  if (lastData.temp !== curTemp) UI.temp.innerText = (curTemp === 999) ? "--" : curTemp;
+  
+  if (curTemp !== lastData.temp) UI.temp.textContent = (curTemp === 999) ? "--" : curTemp;
 
   t_rpm = data.rpm !== undefined ? data.rpm : 0;
   t_load = data.load !== undefined ? data.load : (lastData.load !== undefined ? lastData.load : 0);
   t_volt = data.volt !== undefined ? data.volt : (lastData.volt !== undefined ? lastData.volt : 12.0);
 
-  if (lastData.load !== t_load) UI.valLoad.innerText = t_load + "%";
-  if (lastData.volt !== t_volt.toFixed(1)) UI.valVolt.innerText = t_volt.toFixed(1) + "V";
+  if (lastData.load !== t_load) UI.valLoad.textContent = t_load + "%";
+  if (lastData.volt !== t_volt.toFixed(1)) UI.valVolt.textContent = t_volt.toFixed(1) + "V";
 
   t_tps = data.tps !== undefined ? data.tps : (lastData.tps !== undefined ? lastData.tps : 0);
-  if (lastData.tps !== t_tps) UI.valTps.innerText = t_tps + "%";
+  if (lastData.tps !== t_tps) UI.valTps.textContent = t_tps + "%";
 
   const iatVal = data.iat !== undefined ? data.iat : (lastData.iat !== undefined ? lastData.iat : 999);
-  if (lastData.iat !== iatVal) UI.valIat.innerText = iatVal !== 999 ? iatVal : "--";
-
-  if (data.map !== undefined && lastData.map !== data.map) UI.valMap.innerText = data.map;
+  if (data.map !== undefined && lastData.map !== data.map) UI.valMap.textContent = data.map;
 
   t_fuel = data.fuel !== undefined ? data.fuel : (lastData.fuel !== undefined ? lastData.fuel : 100);
-  if (lastData.fuel !== t_fuel) UI.valFuel.innerText = t_fuel + "%";
+  if (lastData.fuel !== t_fuel) UI.valFuel.textContent = t_fuel + "%";
 
   if (lastData.log !== data.log) {
     if (data.log) { UI.logInd.classList.add('active'); UI.btnLog.classList.add('active'); }
@@ -200,29 +227,28 @@ function applyTelemetryToUI(data) {
 
   calculateG(data.speed, data.gforce);
 
-  let ecoEnabled = UI.ecoMode.checked;
   let stCls = "sys-state", stTxt = "";
   if (curTemp === 999) { stCls += " state-offline"; stTxt = "⏳ Oczekiwanie Na Dane ECU (CAN)..."; }
-  else if (ecoEnabled) { stCls += " state-eco"; stTxt = "🌿 Eco Drive Aktywny"; }
+  else if (cachedEcoMode) { stCls += " state-eco"; stTxt = "🌿 Eco Drive Aktywny"; }
   else if (curTemp < 75) {
     stCls += " state-cold";
     let limit = Math.round(cachedRpmLimit * 0.5);
     stTxt = "⚠ Silnik Zimny — Ochrona (" + limit + " RPM)";
   } else { stCls += " state-normal"; stTxt = "✓ System Online — Normal"; }
 
-  if (lastData.stTxt !== stTxt) { UI.sysState.className = stCls; UI.sysState.innerText = stTxt; }
+  if (lastData.stTxt !== stTxt) { UI.sysState.className = stCls; UI.sysState.textContent = stTxt; }
 
   const finalTimerResult = data.timerResult !== undefined ? data.timerResult : (data.time || 0);
   const finalCTime = data.cTime !== undefined ? data.cTime : (data.current_time || 0);
 
   if (lastData.mode !== data.mode || lastData.cTime !== finalCTime) {
-    if (data.mode <= 1) { UI.timerStatus.innerText = "STANDBY"; UI.timerStatus.style.color = "#1e90ff"; }
-    else if (data.mode === 2) { UI.timerStatus.innerText = "COUNTDOWN..."; UI.timerStatus.style.color = "#1e90ff"; }
-    else if (data.mode === 3) { UI.timerStatus.innerText = ">>> LAUNCH READY <<<"; UI.timerStatus.style.color = "#1e90ff"; UI.timerDisp.innerText = "0.00s"; }
-    else if (data.mode === 4) { UI.timerStatus.innerText = "TRACKING..."; UI.timerStatus.style.color = "#1e90ff"; UI.timerDisp.innerText = (finalCTime / 1000).toFixed(2) + "s"; }
-    else if (data.mode === 5) { UI.timerStatus.innerText = "FINISHED"; UI.timerStatus.style.color = "#2ed573"; UI.timerDisp.innerText = (finalTimerResult / 1000).toFixed(2) + "s"; }
+    if (data.mode <= 1) { UI.timerStatus.textContent = "STANDBY"; UI.timerStatus.style.color = "#1e90ff"; }
+    else if (data.mode === 2) { UI.timerStatus.textContent = "COUNTDOWN..."; UI.timerStatus.style.color = "#1e90ff"; }
+    else if (data.mode === 3) { UI.timerStatus.textContent = ">>> LAUNCH READY <<<"; UI.timerStatus.style.color = "#1e90ff"; UI.timerDisp.textContent = "0.00s"; }
+    else if (data.mode === 4) { UI.timerStatus.textContent = "TRACKING..."; UI.timerStatus.style.color = "#1e90ff"; UI.timerDisp.textContent = (finalCTime / 1000).toFixed(2) + "s"; }
+    else if (data.mode === 5) { UI.timerStatus.textContent = "FINISHED"; UI.timerStatus.style.color = "#2ed573"; UI.timerDisp.textContent = (finalTimerResult / 1000).toFixed(2) + "s"; }
   }
-  lastData = { ...data, stTxt, load: t_load, volt: t_volt.toFixed(1), cTime: finalCTime, temp: curTemp, iat: iatVal };
+  lastData = { ...data, stTxt, load: t_load, volt: t_volt.toFixed(1), cTime: finalCTime, temp: curTemp, iat: iatVal, rpmTime: Date.now() };
 }
 
 function parseTelemetryJSON(jsonStr) {
@@ -234,7 +260,14 @@ function parseTelemetryJSON(jsonStr) {
       UI.brightness.value = data.bright;
       updateVal('brtVal', data.bright);
       UI.ecoMode.checked = data.eco;
+      cachedEcoMode = data.eco; // Sync cache
       UI.buzzerMode.checked = data.buzzer;
+
+      if (data.f_total > 0) {
+        const perc = Math.round((data.f_used / data.f_total) * 100);
+        UI.flashFill.style.width = perc + "%";
+        UI.flashPerc.innerText = perc + "%";
+      }
 
       // Synchronizacja cache'u przy starcie
       cachedRpmLimit = parseInt(data.rpm);
@@ -243,8 +276,97 @@ function parseTelemetryJSON(jsonStr) {
       drawGaugeStatic();
       return;
     }
+    if (data.type === "download_start") {
+      dlBuffer = [];
+      dlReceivedSize = 0;
+      dlExpectedSize = data.size;
+      UI.dlProgressBar.style.display = 'block';
+      toggleUIBlocking(true);
+      updateDownloadProgress();
+      return;
+    }
+    if (data.type === "download_end") {
+      console.log("Download finished, converting binary to CSV...");
+      
+      // Konwersja binarna: scalanie wszystkich kawałków w jeden bufor
+      const totalLen = dlBuffer.reduce((acc, curr) => acc + curr.length, 0);
+      const combined = new Uint8Array(totalLen);
+      let offset = 0;
+      for (let chunk of dlBuffer) { combined.set(chunk, offset); offset += chunk.length; }
+
+      // Parsowanie rekordów (44 bajty każdy, zgodnie z TelemetryData w C++)
+      const recordSize = 44;
+      const csvRows = ["Time(ms),RPM,Speed(km/h),Temp(C),Load(%),Volt(V),IAT(C),TPS(%),MAP(kPa),Fuel(%),G(g)"];
+      const view = new DataView(combined.buffer);
+      
+      for (let i = 0; i <= totalLen - recordSize; i += recordSize) {
+        let t    = view.getUint32(i, true);
+        let rpm  = view.getInt32(i + 4, true);
+        let spd  = view.getInt32(i + 8, true);
+        let tmp  = view.getInt32(i + 12, true);
+        let load = view.getInt32(i + 16, true);
+        let volt = view.getFloat32(i + 20, true).toFixed(2);
+        let iat  = view.getInt32(i + 24, true);
+        let tps  = view.getInt32(i + 28, true);
+        let map  = view.getInt32(i + 32, true);
+        let fuel = view.getInt32(i + 36, true);
+        let g    = view.getFloat32(i + 40, true).toFixed(2);
+        
+        csvRows.push(`${t},${rpm},${spd},${tmp},${load},${volt},${iat},${tps},${map},${fuel},${g}`);
+      }
+
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `telemetry_${new Date().getTime()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      UI.dlProgressBar.style.display = 'none';
+      toggleUIBlocking(false);
+      return;
+    }
+    if (data.type === "download_error") {
+      alert("Błąd podczas otwierania pliku na urządzeniu.");
+      UI.dlProgressBar.style.display = 'none';
+      toggleUIBlocking(false);
+      return;
+    }
+    if (data.type === "fs_stat") {
+      if (data.f_total > 0) {
+        const perc = Math.round((data.f_used / data.f_total) * 100);
+        UI.flashFill.style.width = perc + "%";
+        UI.flashPerc.textContent = perc + "%";
+      }
+      return;
+    }
     applyTelemetryToUI(data);
   } catch (e) { console.error("JSON Parse Error:", e); }
+}
+
+function updateDownloadProgress() {
+  if (dlExpectedSize === 0) return;
+  const p = Math.min(100, Math.round((dlReceivedSize / dlExpectedSize) * 100));
+  UI.dlProgressFill.style.width = p + "%";
+  UI.dlProgressText.textContent = p + "% (" + Math.round(dlReceivedSize / 1024) + "KB)";
+}
+
+function downloadLog() {
+  if (!bleDevice || !bleDevice.gatt.connected) {
+    alert("Najpierw połącz się z urządzeniem przez BLE.");
+    return;
+  }
+  sendCmd("cmd:log_dl");
+}
+
+function toggleUIBlocking(blocked) {
+  const btns = [UI.btnConnect, UI.btnLog, UI.btnLogStop, UI.btnSaveSettings, UI.rpmLimit, UI.brightness, UI.ecoMode, UI.buzzerMode];
+  btns.forEach(el => { if (el) el.disabled = blocked; });
+  const exportBtn = document.querySelector('.btn-export');
+  if (exportBtn) exportBtn.disabled = blocked;
 }
 
 async function sendCmd(cmdStr) {
@@ -263,13 +385,13 @@ function saveSettings() {
   drawGaugeStatic();
   setupGradients();
   let btn = document.getElementById('btnSave');
-  btn.innerText = "TX DATA...";
+  btn.textContent = "TX DATA...";
   sendCmd(`cmd:save:${r}:${b}:${eco}:${buz}`).then(success => {
     let stat = document.getElementById('status');
-    stat.innerText = success ? "✓ ZAPISANO" : "✕ BŁĄD";
+    stat.textContent = success ? "✓ ZAPISANO" : "✕ BŁĄD";
     stat.style.color = success ? "var(--green)" : "var(--red)";
-    btn.innerText = "APPLY CONFIGURATION";
-    setTimeout(() => stat.innerText = "", 3000);
+    btn.textContent = "APPLY CONFIGURATION";
+    setTimeout(() => stat.textContent = "", 3000);
   });
 }
 
@@ -278,14 +400,14 @@ function stopLogging() { sendCmd("cmd:log_stop"); }
 
 function cancelTimer() {
   sendCmd("cmd:cancel0100");
-  UI.timerStatus.innerText = "ABORTING..."; UI.timerStatus.style.color = "var(--red)";
+  UI.timerStatus.textContent = "ABORTING..."; UI.timerStatus.style.color = "var(--red)";
   if (UI.countdownOverlay) UI.countdownOverlay.style.display = 'none';
 }
 
 function startTimer() { sendCmd("cmd:start0100"); showCountdownOverlay(); }
 
 function updateVal(id, val) {
-  document.getElementById(id).innerText = val;
+  document.getElementById(id).textContent = val;
   if (id === 'rpmVal') {
     cachedRpmLimit = parseInt(val);
     maxRpm = cachedRpmLimit + 500;
@@ -295,15 +417,15 @@ function updateVal(id, val) {
 }
 
 // ==========================================
-// 4. GRAFIKI I CANVAS (RENDER ENGINE)
+// 3. GRAFIKI I CANVAS (RENDER ENGINE)
 // ==========================================
 function showCountdownOverlay() {
   if (!UI.countdownOverlay) return;
   UI.countdownOverlay.style.display = 'flex'; UI.countdownOverlay.style.opacity = '1';
-  UI.countdownNum.style.color = "var(--red)"; UI.countdownNum.innerText = "5";
-  [4, 3, 2, 1].forEach((v, i) => setTimeout(() => UI.countdownNum.innerText = v, (i + 1) * 1000));
+  UI.countdownNum.style.color = "var(--red)"; UI.countdownNum.textContent = "5";
+  [4, 3, 2, 1].forEach((v, i) => setTimeout(() => UI.countdownNum.textContent = v, (i + 1) * 1000));
   setTimeout(() => {
-    UI.countdownNum.innerText = "GO!"; UI.countdownNum.style.color = "var(--green)";
+    UI.countdownNum.textContent = "GO!"; UI.countdownNum.style.color = "var(--green)";
     setTimeout(() => {
       UI.countdownOverlay.style.opacity = '0';
       setTimeout(() => UI.countdownOverlay.style.display = 'none', 300);
@@ -359,22 +481,27 @@ function drawGaugeStatic() {
   ctx.lineWidth = 18; ctx.strokeStyle = '#111820'; ctx.stroke();
   ctx.save(); ctx.translate(cx, cy);
   ctx.fillStyle = '#484f58'; ctx.font = 'bold 11px "Segoe UI"'; ctx.textAlign = 'center';
-  for (let i = 0; i <= 10; i++) {
-    let angle = -Math.PI + (i / 10) * Math.PI;
+  const divisions = Math.ceil(maxRpm / 1000);
+  for (let i = 0; i <= divisions; i++) {
+    let angle = -Math.PI + (i / divisions) * Math.PI;
     ctx.fillText(i, Math.cos(angle) * (r - 28), Math.sin(angle) * (r - 28) + 4);
-    ctx.beginPath(); ctx.moveTo(Math.cos(angle) * (r - 12), Math.sin(angle) * (r - 12)); ctx.lineTo(Math.cos(angle) * (r + 12), Math.sin(angle) * (r + 12));
+    ctx.beginPath(); ctx.moveTo(Math.cos(angle) * (r - 12), Math.sin(angle) * (r - 12)); 
+    ctx.lineTo(Math.cos(angle) * (r + 12), Math.sin(angle) * (r + 12));
     ctx.lineWidth = 2; ctx.strokeStyle = '#1e2530'; ctx.stroke();
   }
   ctx.restore();
 }
 
 function renderCanvas() {
+  const curMode = lastData.mode !== undefined ? lastData.mode : 0;
+  const curTemp = lastData.temp !== undefined ? lastData.temp : 20;
+
   c_rpm += (t_rpm - c_rpm) * 0.3;
   c_load += (t_load - c_load) * 0.15;
   c_volt += (t_volt - c_volt) * 0.1;
   c_tps += (t_tps - c_tps) * 0.2;
   c_fuel += (t_fuel - c_fuel) * 0.1;
-  drawGaugeDynamic();
+  drawGaugeDynamic(curMode, curTemp);
   drawMiniBar(UI.gaugeLoad, c_load / 100, '#ff6348');
   drawMiniBar(UI.gaugeVolt, (c_volt - 10) / 5, '#2ed573');
   drawMiniBar(UI.gaugeTps, c_tps / 100, '#ffa502');
@@ -383,7 +510,7 @@ function renderCanvas() {
   requestAnimationFrame(renderCanvas);
 }
 
-function drawGaugeDynamic() {
+function drawGaugeDynamic(mode, temp) {
   const cnv = UI.gaugeDynamic; if (!cnv) return;
   const ctx = cnv.getContext("2d"), w = cnv.width, h = cnv.height, cx = w / 2, cy = h - 20, r = 160;
   ctx.clearRect(0, 0, w, h);
@@ -392,6 +519,8 @@ function drawGaugeDynamic() {
     let strokeCol = '#2ed573';
     if (c_rpm >= cachedRpmLimit) strokeCol = (Math.floor(Date.now() / 80) % 2 === 0) ? '#ff4757' : '#1a0000';
     else strokeCol = rpmGradient || '#2ed573';
+    // Obsługa trybu TEST (mruganie tęczą/białym)
+    if (mode === 6) strokeCol = (Math.floor(Date.now() / 150) % 2 === 0) ? '#ffffff' : '#2ed573';
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + fill * Math.PI);
     ctx.lineWidth = 18; ctx.lineCap = 'round'; ctx.strokeStyle = strokeCol;
     if (c_rpm >= cachedRpmLimit * 0.8) { ctx.shadowBlur = 15; ctx.shadowColor = '#ff4757'; }
@@ -400,6 +529,39 @@ function drawGaugeDynamic() {
   ctx.fillStyle = '#e6edf3'; ctx.font = 'bold 52px "Segoe UI"'; ctx.textAlign = 'center';
   ctx.fillText(Math.round(c_rpm), cx, cy - 10);
   ctx.fillStyle = '#484f58'; ctx.font = 'bold 14px "Segoe UI"'; ctx.fillText("RPM", cx, cy + 12);
+
+  // LOGIKA PEAK HOLD
+  if (c_rpm > peakRpm) {
+    peakRpm = c_rpm;
+    peakRpmTime = Date.now();
+  } else if (Date.now() - peakRpmTime > 2000) {
+    peakRpm = c_rpm; // Zresetuj peak do aktualnych obrotów po 2 sekundach
+  }
+
+  // RYSUJ ZNACZNIK SZCZYTOWY
+  if (peakRpm > 0) {
+    let peakFill = Math.min(peakRpm / maxRpm, 1.0);
+    let peakAngle = Math.PI + peakFill * Math.PI;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, peakAngle - 0.01, peakAngle + 0.01);
+    ctx.lineWidth = 18;
+    ctx.strokeStyle = 'rgba(255, 71, 87, 0.6)'; // Półprzezroczysty czerwony znacznik
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // WIZUALNA STREFA ZIMNEGO SILNIKA
+  if (temp < 75 && temp !== 999) {
+    ctx.save();
+    ctx.beginPath();
+    let coldEnd = Math.min(3000 / maxRpm, 1.0);
+    ctx.arc(cx, cy, r, Math.PI, Math.PI + coldEnd * Math.PI);
+    ctx.lineWidth = 18;
+    ctx.strokeStyle = 'rgba(30, 144, 255, 0.3)'; // Półprzezroczysty niebieski
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function drawMiniBar(cnv, val, col) {
@@ -437,13 +599,24 @@ document.addEventListener("DOMContentLoaded", () => {
   UI.gaugeTps = document.getElementById('tpsCanvas'); UI.gaugeFuel = document.getElementById('fuelCanvas');
   UI.countdownOverlay = document.getElementById('countdownOverlay');
   UI.countdownNum = document.getElementById('countdownNum');
+  UI.dlProgressBar = document.getElementById('dlProgressBar');
+  UI.dlProgressFill = document.getElementById('dlProgressFill');
+  UI.dlProgressText = document.getElementById('dlProgressText');
+  UI.flashFill = document.getElementById('flashFill');
+  UI.flashPerc = document.getElementById('flashPerc');
+  UI.btnSaveSettings = document.getElementById('btnSave');
+  UI.btnLogStop = document.getElementById('btnLogStop');
+  UI.obdHz = document.getElementById("obdHz");
 
   initBLEEvents();
+
+  UI.ecoMode.addEventListener('change', (e) => { cachedEcoMode = e.target.checked; });
+
   cachedRpmLimit = parseInt(UI.rpmLimit.value) || 6000;
   setupGradients();
   drawGaugeStatic();
   maxRpm = cachedRpmLimit + 500;
   requestAnimationFrame(renderCanvas);
   let btnExp = document.querySelector('.btn-export');
-  if (btnExp) btnExp.onclick = () => alert("Pobieranie logów CSV odbywa się wyłącznie bezpośrednio z pamięci ESP przez USB.");
+  if (btnExp) btnExp.onclick = () => alert("Pobieranie logów CSV odbywa się poprzez połączenie Bluetooth.");
 });

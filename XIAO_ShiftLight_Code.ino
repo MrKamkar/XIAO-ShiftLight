@@ -63,7 +63,7 @@ void setup() {
   FastLED.setBrightness(brightness);
 
   // Core 0 (Protocol CPU): Bezkompromisowe nasłuchiwanie sprzętowe CAN Bus'a i komunikacja BLE
-  xTaskCreatePinnedToCore(taskCore0, "Core0Task", 10000, NULL, 1, NULL, 0); // 10KB stosu, które wystarczy na obsługę BLE, CAN i logowania danych
+  xTaskCreatePinnedToCore(taskCore0, "Core0Task", 10000, NULL, 5, NULL, 0); // 10KB stosu, które wystarczy na obsługę BLE, CAN i logowania danych
   
   // Core 1 (Application CPU): Czysta dedykacja obliczeniowa pod silnik renderujący układu FastLED
   xTaskCreatePinnedToCore(taskCore1, "Core1Task", 10000, NULL, 1, NULL, 1); // 10KB stosu, które wystarczy na animacje FastLED
@@ -71,5 +71,5 @@ void setup() {
 
 void loop() {
   // Architektura jest wielowątkowa, więc pusta pętla loop() nie jest potrzebna
-  vTaskDelete(NULL); 
+  vTaskDelete(NULL);
 }
