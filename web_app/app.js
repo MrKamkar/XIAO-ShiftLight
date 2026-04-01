@@ -27,21 +27,44 @@ let maxRpm = 8000;
 let gHistory = new Array(120).fill(0);
 let lastSpeedForG = 0, lastTimeForG = Date.now(), filteredG = 0;
 
-// UI Elements
-const btnConnect = document.getElementById("btnConnect");
-const dotStatus = document.getElementById("connStatusDot");
-const sysState = document.getElementById("sysState");
+// UI Elements Cache
+const UI = {
+  btnConnect: null,
+  dotStatus: null,
+  sysState: null,
+  speed: null,
+  temp: null,
+  valLoad: null,
+  valVolt: null,
+  valTps: null,
+  valIat: null,
+  valMap: null,
+  valFuel: null,
+  logInd: null,
+  btnLog: null,
+  timerStatus: null,
+  timerDisp: null,
+  rpmLimit: null,
+  brightness: null,
+  ecoMode: null,
+  buzzerMode: null
+};
+
+// Pamięć ostatnich wartości, by nie odświeżać DOM bez potrzeby
+let lastData = {};
 
 // ==========================================
 // 1. POŁĄCZENIE BLUETOOTH
 // ==========================================
-btnConnect.addEventListener("click", async () => {
-  if (bleDevice && bleDevice.gatt.connected) {
-    disconnectBLE();
-  } else {
-    connectBLE();
-  }
-});
+function initBLEEvents() {
+  UI.btnConnect.addEventListener("click", async () => {
+    if (bleDevice && bleDevice.gatt.connected) {
+      disconnectBLE();
+    } else {
+      connectBLE();
+    }
+  });
+}
 
 async function connectBLE() {
   try {
@@ -72,11 +95,11 @@ async function connectBLE() {
     txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
 
     // Ustawienie UI
-    btnConnect.innerText = "Rozłącz BLE";
-    btnConnect.classList.replace("btn-primary", "btn-stop");
-    dotStatus.className = "pulse dot-margin"; // Zielona pulsująca kropka
-    sysState.className = "sys-state state-normal";
-    sysState.innerText = "🔗 BLE Connected — Oczekiwanie na CAN";
+    UI.btnConnect.innerText = "Rozłącz BLE";
+    UI.btnConnect.classList.replace("btn-primary", "btn-stop");
+    UI.dotStatus.className = "pulse dot-margin"; // Zielona pulsująca kropka
+    UI.sysState.className = "sys-state state-normal";
+    UI.sysState.innerText = "🔗 BLE Connected — Oczekiwanie na CAN";
     
     console.log("Bluetooth pomyślnie podłączony!");
     
@@ -101,11 +124,11 @@ function disconnectBLE() {
 
 function onDisconnected() {
   console.log("Urządzenie Bluetooth rozłączone");
-  btnConnect.innerText = "BLE Connect";
-  btnConnect.classList.replace("btn-stop", "btn-primary");
-  dotStatus.className = "pulse-offline dot-margin";
-  sysState.className = "sys-state state-offline";
-  sysState.innerText = "Link Offline... Złącz BLE by rozpocząć.";
+  UI.btnConnect.innerText = "BLE Connect";
+  UI.btnConnect.classList.replace("btn-stop", "btn-primary");
+  UI.dotStatus.className = "pulse-offline dot-margin";
+  UI.sysState.className = "sys-state state-offline";
+  UI.sysState.innerText = "Link Offline... Złącz BLE by rozpocząć.";
 }
 
 // ==========================================
@@ -133,47 +156,49 @@ function parseTelemetryJSON(jsonStr) {
     
     // Gdy zawnioskowaliśmy o konfigurację
     if (data.type === "config") {
-      document.getElementById('rpmLimit').value = data.rpm;
+      UI.rpmLimit.value = data.rpm;
       updateVal('rpmVal', data.rpm);
-      document.getElementById('brightness').value = data.bright;
+      UI.brightness.value = data.bright;
       updateVal('brtVal', data.bright);
-      document.getElementById('ecoMode').checked = data.eco;
-      document.getElementById('buzzerMode').checked = data.buzzer;
+      UI.ecoMode.checked = data.eco;
+      UI.buzzerMode.checked = data.buzzer;
       return;
     }
 
-    // Aktualizacja podstawowych wskaźników
-    document.getElementById('speedDisplay').innerText = data.speed;
-    document.getElementById('tempDisplay').innerText = data.temp === 999 ? "--" : data.temp;
+    // Aktualizacja Speed & Temp (tylko przy zmianie)
+    if (lastData.speed !== data.speed) {
+        UI.speed.innerText = data.speed;
+    }
+    if (lastData.temp !== data.temp) {
+        UI.temp.innerText = data.temp === 999 ? "--" : data.temp;
+    }
 
     t_rpm = data.rpm !== undefined ? data.rpm : 0;
-    
-    // Load = symulowany, jeśli nie obsługiwany, albo przesyłany z ECU
     t_load = data.load !== undefined ? data.load : Math.min(100, (t_rpm / 6000) * 100 + Math.random()*8);
     t_volt = data.volt !== undefined ? data.volt : (13.8 + (Math.random()*0.3 - 0.15));
 
-    document.getElementById('valLoad').innerText = Math.round(t_load) + "%";
-    document.getElementById('valVolt').innerText = t_volt.toFixed(1) + "V";
+    // Value Guarding dla mini-wskaźników
+    if (lastData.load !== Math.round(t_load)) UI.valLoad.innerText = Math.round(t_load) + "%";
+    if (lastData.volt !== t_volt.toFixed(1))  UI.valVolt.innerText = t_volt.toFixed(1) + "V";
 
     if (data.tps !== undefined) {
       t_tps = data.tps; 
-      document.getElementById('valTps').innerText = Math.round(t_tps) + "%";
-      document.getElementById('valIat').innerText = data.iat !== 999 ? data.iat : "--";
-      document.getElementById('valMap').innerText = data.map;
+      if (lastData.tps !== Math.round(t_tps)) UI.valTps.innerText = Math.round(t_tps) + "%";
+      if (lastData.iat !== data.iat) UI.valIat.innerText = data.iat !== 999 ? data.iat : "--";
+      if (lastData.map !== data.map) UI.valMap.innerText = data.map;
+      
       t_fuel = data.fuel; 
-      document.getElementById('valFuel').innerText = Math.round(t_fuel) + "%";
+      if (lastData.fuel !== Math.round(t_fuel)) UI.valFuel.innerText = Math.round(t_fuel) + "%";
     }
 
     // Logowanie flash
-    let ind = document.getElementById('logIndicator');
-    let btnS = document.getElementById('btnLogStart');
-    if (ind && data.log !== undefined) {
+    if (lastData.log !== data.log) {
       if (data.log === true || data.log === "true") {
-        ind.classList.add('active');
-        btnS.classList.add('active');
+        UI.logInd.classList.add('active');
+        UI.btnLog.classList.add('active');
       } else {
-        ind.classList.remove('active');
-        btnS.classList.remove('active');
+        UI.logInd.classList.remove('active');
+        UI.btnLog.classList.remove('active');
       }
     }
 
@@ -181,48 +206,54 @@ function parseTelemetryJSON(jsonStr) {
     calculateG(data.speed);
 
     // Pasek stanu ogólnego
-    let ecoEnabled = document.getElementById('ecoMode').checked;
+    let ecoEnabled = UI.ecoMode.checked;
+    let stCls = "sys-state", stTxt = "";
     if (data.temp === 999) {
-      sysState.className = "sys-state state-offline";
-      sysState.innerText = "⏳ Oczekiwanie Na Dane ECU (CAN)...";
+      stCls += " state-offline"; stTxt = "⏳ Oczekiwanie Na Dane ECU (CAN)...";
     } else if (ecoEnabled) {
-      sysState.className = "sys-state state-eco";
-      sysState.innerText = "🌿 Eco Drive Aktywny";
+      stCls += " state-eco"; stTxt = "🌿 Eco Drive Aktywny";
     } else if (data.temp < 75) {
-      sysState.className = "sys-state state-cold";
-      let limit = Math.round(parseInt(document.getElementById('rpmLimit').value) * 0.5);
-      sysState.innerText = "⚠ Silnik Zimny — Ochrona (" + limit + " RPM)";
+      stCls += " state-cold";
+      let limit = Math.round(parseInt(UI.rpmLimit.value) * 0.5);
+      stTxt = "⚠ Silnik Zimny — Ochrona (" + limit + " RPM)";
     } else {
-      sysState.className = "sys-state state-normal";
-      sysState.innerText = "✓ System Online — Normal";
+      stCls += " state-normal"; stTxt = "✓ System Online — Normal";
+    }
+    
+    if (lastData.stTxt !== stTxt) {
+      UI.sysState.className = stCls;
+      UI.sysState.innerText = stTxt;
     }
 
     // Timer Drag
-    let timerStatus = document.getElementById('timerStatus');
-    let timerDisp = document.getElementById('timeDisplay');
-    if (data.mode <= 1) {
-      timerStatus.innerText = "STANDBY";
-      timerStatus.style.color = "var(--blue)";
+    if (lastData.mode !== data.mode || lastData.cTime !== data.current_time) {
+        if (data.mode <= 1) {
+          UI.timerStatus.innerText = "STANDBY";
+          UI.timerStatus.style.color = "var(--blue)";
+        }
+        else if (data.mode === 2) {
+          UI.timerStatus.innerText = "COUNTDOWN...";
+          UI.timerStatus.style.color = "var(--blue)";
+        }
+        else if (data.mode === 3) {
+          UI.timerStatus.innerText = ">>> LAUNCH READY <<<";
+          UI.timerStatus.style.color = "var(--blue)";
+          UI.timerDisp.innerText = "0.00s";
+        }
+        else if (data.mode === 4) {
+          UI.timerStatus.innerText = "TRACKING...";
+          UI.timerStatus.style.color = "var(--blue)";
+          UI.timerDisp.innerText = (data.current_time / 1000.0).toFixed(2) + "s";
+        }
+        else if (data.mode === 5) {
+          UI.timerStatus.innerText = "FINISHED";
+          UI.timerStatus.style.color = "var(--green)";
+          UI.timerDisp.innerText = (data.time / 1000.0).toFixed(2) + "s";
+        }
     }
-    else if (data.mode === 2) {
-      timerStatus.innerText = "COUNTDOWN...";
-      timerStatus.style.color = "var(--blue)";
-    }
-    else if (data.mode === 3) {
-      timerStatus.innerText = ">>> LAUNCH READY <<<";
-      timerStatus.style.color = "var(--blue)";
-      timerDisp.innerText = "0.00s";
-    }
-    else if (data.mode === 4) {
-      timerStatus.innerText = "TRACKING...";
-      timerStatus.style.color = "var(--blue)";
-      timerDisp.innerText = (data.current_time / 1000.0).toFixed(2) + "s";
-    }
-    else if (data.mode === 5) {
-      timerStatus.innerText = "FINISHED";
-      timerStatus.style.color = "var(--green)";
-      timerDisp.innerText = (data.time / 1000.0).toFixed(2) + "s";
-    }
+
+    // Zapamiętaj dane dla kolejnego cyklu
+    lastData = {...data, stTxt, load: Math.round(t_load), volt: t_volt.toFixed(1), cTime: data.current_time};
 
   } catch (e) {
     console.error("Błąd parsowania układu JSON:", e);
@@ -245,10 +276,10 @@ async function sendCmd(cmdStr) {
 
 // Interakcje UI (Dawne fetch('/start0100') zamienione na sendCmd)
 function saveSettings() {
-  let r = document.getElementById('rpmLimit').value;
-  let b = document.getElementById('brightness').value;
-  let eco = document.getElementById('ecoMode').checked ? 1 : 0;
-  let buz = document.getElementById('buzzerMode').checked ? 1 : 0;
+  let r = UI.rpmLimit.value;
+  let b = UI.brightness.value;
+  let eco = UI.ecoMode.checked ? 1 : 0;
+  let buz = UI.buzzerMode.checked ? 1 : 0;
   maxRpm = parseInt(r) + 500;
   
   let btn = document.getElementById('btnSave');
@@ -381,10 +412,10 @@ function renderCanvas() {
     
     let fill = Math.min(c_rpm / maxRpm, 1.0);
     if (fill > 0) {
-      let isEco = document.getElementById('ecoMode').checked;
-      let tempText = document.getElementById('tempDisplay').innerText;
+      let isEco = UI.ecoMode.checked;
+      let tempText = UI.temp.innerText;
       let isCold = tempText !== "--" && parseInt(tempText) < 75;
-      let baseLimit = parseInt(document.getElementById('rpmLimit').value);
+      let baseLimit = parseInt(UI.rpmLimit.value);
       let activeLimit = baseLimit;
       
       if (isEco) activeLimit = baseLimit * 0.4;
@@ -477,12 +508,35 @@ function renderCanvas() {
   requestAnimationFrame(renderCanvas);
 }
 
-// Inicjalizacja zegarów
+// Inicjalizacja zegarów i Cache'u DOM
 document.addEventListener("DOMContentLoaded", () => {
-  maxRpm = parseInt(document.getElementById('rpmLimit').value) + 500;
+  // Wypełnienie mapy obiektów DOM (Cache)
+  UI.btnConnect = document.getElementById("btnConnect");
+  UI.dotStatus = document.getElementById("connStatusDot");
+  UI.sysState = document.getElementById("sysState");
+  UI.speed = document.getElementById("speedDisplay");
+  UI.temp = document.getElementById("tempDisplay");
+  UI.valLoad = document.getElementById("valLoad");
+  UI.valVolt = document.getElementById("valVolt");
+  UI.valTps = document.getElementById("valTps");
+  UI.valIat = document.getElementById("valIat");
+  UI.valMap = document.getElementById("valMap");
+  UI.valFuel = document.getElementById("valFuel");
+  UI.logInd = document.getElementById("logIndicator");
+  UI.btnLog = document.getElementById("btnLogStart");
+  UI.timerStatus = document.getElementById("timerStatus");
+  UI.timerDisp = document.getElementById("timeDisplay");
+  UI.rpmLimit = document.getElementById("rpmLimit");
+  UI.brightness = document.getElementById("brightness");
+  UI.ecoMode = document.getElementById("ecoMode");
+  UI.buzzerMode = document.getElementById("buzzerMode");
+
+  // Inicjalizacja zdarzeń guzików
+  initBLEEvents();
+
+  maxRpm = parseInt(UI.rpmLimit.value) + 500;
   requestAnimationFrame(renderCanvas);
   
-  // Zastąpmy logikę Export CSV ostrzeżeniem (Web Bluetooth nie dźwiga dużych plików)
   let btnExp = document.querySelector('.btn-export');
   if(btnExp) {
     btnExp.onclick = () => alert("Pobieranie logów CSV odbywa się wyłącznie bezpośrednio z pamięci plikowej ESP podłączając płytkę po kablu USB. Bluetooth używasz do odpalania rec!");

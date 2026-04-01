@@ -123,13 +123,16 @@ void setupBLEServer() {
 void sendBLETelemetry() {
   if (!bleConnected || pTxCharacteristic == NULL) return;
 
-  char jsonBuffer[380];
+  // Użycie statycznego bufora
+  static char jsonBuffer[380];
   uint32_t cTime = (currentMode == MODE_0_100_MEASURING) ? (millis() - dragTimerStart) : 0;
   
-  snprintf(jsonBuffer, sizeof(jsonBuffer),
+  int len = snprintf(jsonBuffer, sizeof(jsonBuffer),
            "{\"mode\":%d,\"speed\":%d,\"temp\":%d,\"load\":%d,\"volt\":%.1f,\"rpm\":%d,\"time\":%lu,\"current_time\":%lu,\"iat\":%d,\"tps\":%d,\"map\":%d,\"fuel\":%d,\"gforce\":%.2f,\"log\":%s}\n",
            currentMode, currentSpeed, currentTemp, currentLoad, currentVolt, currentRPM, timerResult, cTime, currentIAT, currentTPS, currentMAP, currentFuel, currentGForce, isLogging ? "true" : "false");
            
-  pTxCharacteristic->setValue((uint8_t*)jsonBuffer, strlen(jsonBuffer));
-  pTxCharacteristic->notify();
+  if (len > 0) {
+    pTxCharacteristic->setValue((uint8_t*)jsonBuffer, len);
+    pTxCharacteristic->notify();
+  }
 }
