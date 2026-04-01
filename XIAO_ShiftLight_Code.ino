@@ -6,7 +6,7 @@
 #include "led_controller.h"
 #include "can_bus.h"
 #include "core_tasks.h"
-#include "web_server.h"
+#include "ble_server.h"
 #include "data_logger.h"
 
 // Definicje zmiennych globalnych (zadeklarowanych extern w config.h)
@@ -14,7 +14,11 @@ volatile int shiftLimit;
 volatile int brightness;
 volatile bool ecoMode;
 volatile bool buzzerEnabled = true;
-volatile uint32_t lastWebPing = 0;
+
+// Definicje flag i liczników czasu BLE
+volatile bool bleConnected = false;
+volatile uint32_t lastBLEActivity = 0;
+
 volatile uint32_t lastRPMTime = 0; // Inicjalizacja czasu ostatniej poprawnej ramki
 
 volatile int currentRPM = 0;
@@ -37,7 +41,7 @@ volatile bool isLogging = false;
 Preferences preferences;
 
 void setup() {
-  // Serial.begin(115200); // Odkomentuj tylko do debugowania przez USB
+  //Serial.begin(115200); // Odkomentuj tylko do debugowania przez USB
 
   lastRPMTime = millis(); // Punkt zerowy dla fail-safe, aby uniknąć błędu na starcie
 
@@ -58,8 +62,8 @@ void setup() {
   // Ustawienie jasności matrycy LED (z led_controller.cpp)
   FastLED.setBrightness(brightness);
 
-  // Core 0 (Protocol CPU): Bezkompromisowe nasłuchiwanie sprzętowe CAN Bus'a i Web Serwera WiFi
-  xTaskCreatePinnedToCore(taskCore0, "Core0Task", 10000, NULL, 1, NULL, 0); // 10KB stosu, które wystarczy na obsługę WiFi, CAN i logowania danych
+  // Core 0 (Protocol CPU): Bezkompromisowe nasłuchiwanie sprzętowe CAN Bus'a i komunikacja BLE
+  xTaskCreatePinnedToCore(taskCore0, "Core0Task", 10000, NULL, 1, NULL, 0); // 10KB stosu, które wystarczy na obsługę BLE, CAN i logowania danych
   
   // Core 1 (Application CPU): Czysta dedykacja obliczeniowa pod silnik renderujący układu FastLED
   xTaskCreatePinnedToCore(taskCore1, "Core1Task", 10000, NULL, 1, NULL, 1); // 10KB stosu, które wystarczy na animacje FastLED

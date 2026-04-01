@@ -23,7 +23,7 @@ void setupLEDs() {
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW); 
   
-  // Wymuszenie sterownika sprzętowego RMT (odpornego na przerwania WiFi)
+  // Wymuszenie sterownika sprzętowego RMT (odpornego na przerwania BLE)
   FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
   
   // CAŁKOWITE wyłączenie ditheringu czasowego (eliminuje szum świetlny przy małej jasności)

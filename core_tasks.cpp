@@ -1,23 +1,16 @@
 #include <Arduino.h>
-#include <WiFi.h>
-#include <esp_wifi.h>
 #include <driver/twai.h>
 #include "config.h"
 #include "core_tasks.h"
 #include "can_bus.h"
-#include "web_server.h"
+#include "ble_server.h"
 #include "data_logger.h"
 #include "led_controller.h"
 #include "obd_pids.h"
 
 void taskCore0(void *pvParameters) {
-  // Inicjalizacja WiFi jako Access Point
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP("Kamcore_ShiftLight", "kamcore_pass"); // Nazwa sieci i hasło do połączenia
-  esp_wifi_set_ps(WIFI_PS_NONE); // Wyłącza tryb oszczędzania energii WiFi
-  
-  // Inicjalizacja serwera WWW (z web_server.cpp)
-  setupWebServer();
+  // Powołanie struktury serwera BLE oraz charakterystyk GATT
+  setupBLEServer();
 
   // Inicjalizacja sterownika CAN (TWAI) ze standardem ISO 15765-4
 #if CAN_TEST_LOOPBACK
@@ -32,16 +25,16 @@ void taskCore0(void *pvParameters) {
 #endif
   twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
-  // Instalacja i uruchomienie sterownika TWAI (z walidacją)
+  // Instalacja i uruchomienie sterownika TWAI
   if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK || twai_start() != ESP_OK) {
     // Krytyczny błąd sprzętowy — zatrzymaj rdzeń 0
     while(true) vTaskDelay(pdMS_TO_TICKS(1000));
   }
 
-  // Konfiguracja alertów TWAI (event-driven zamiast polling)
+  // Konfiguracja alertów TWAI
   twai_reconfigure_alerts(TWAI_ALERT_RX_DATA | TWAI_ALERT_BUS_OFF, NULL);
 
-  // Inicjalizacja Kolejki i Zadania Logowania (Rdzeń 0, niski priorytet)
+  // Inicjalizacja Kolejki i Zadania Logowania
   logQueue = xQueueCreate(50, sizeof(TelemetryData));
   xTaskCreatePinnedToCore(taskLogging, "TaskLogging", 8192, NULL, 1, NULL, 0);
 
@@ -56,9 +49,16 @@ void taskCore0(void *pvParameters) {
   float lastSpeedForG = 0;
   uint32_t lastTimeForG = millis();
 
+  uint32_t lastBleTime = 0;
+
   while (true) {
-    // Serwer musi działać tu, ponieważ jest on obsługiwany przez rdzeń 0
-    handleWebServerClient();
+    uint32_t now = millis();
+
+    // Cykliczne wysyłanie ramek telemetrii przez BLE
+    if (now - lastBleTime >= 20) {
+      sendBLETelemetry();
+      lastBleTime = now;
+    }
     
     // Logika wysyłania danych do kolejki (co 40ms = 25 Hz — pełna rozdzielczość G-force)
     if (isLogging && (millis() - lastLogTime >= 40)) {
@@ -140,16 +140,16 @@ void taskCore0(void *pvParameters) {
     #endif
     
     // Agile Polling Schedule: 15ms priorytet RPM
-    uint32_t now = millis();
+    now = millis();
     bool pollTimeout = (now - lastOBDRequest >= 50);
 
     if (!waitingForResponse || pollTimeout) {
       if (now - lastOBDRequest >= 15) { 
         uint8_t pidRequest = PID_ENGINE_RPM; 
-        bool webActive = (now - lastWebPing < 3000);
-        bool requiresFullData = webActive || isLogging; // Odpytuj wszystko jeśli telefon świeci LUB logujemy dany do CSV
+        bool appActive = bleConnected; // Interfejs użytkownika jest podpięty przez BLE
+        bool requiresFullData = appActive || isLogging; // Odpytuj wszystko jeśli telefon połączony lub logujemy dane do CSV
         
-        // 1. Zarządzanie parametrami wolnozmiennymi (wyzwalane czasowo)
+        // Zarządzanie parametrami wolnozmiennymi (wyzwalane czasowo)
         if (now - lastTempRequest >= (requiresFullData ? 500 : 5000)) { 
           static int slowSeq = 0;
           // Rotacja parametrów dodatkowych, aby nie zapchać magistrali
@@ -168,7 +168,7 @@ void taskCore0(void *pvParameters) {
           lastTempRequest = now;
         } 
         else {
-          // 2. Szybkozmienne: RPM/Speed 50/50 (logowanie webD/CSV lub pomiar) albo 100% RPM (offline/eco)
+          // Szybkozmienne: RPM/Speed 50/50 (logowanie webD/CSV lub pomiar) albo 100% RPM (offline/eco)
           if (requiresFullData || currentMode == MODE_0_100_MEASURING || currentMode == MODE_0_100_WAITING_FOR_LAUNCH) {
             obdSeq = (obdSeq + 1) % 2;
             pidRequest = (obdSeq == 0) ? PID_ENGINE_RPM : PID_VEHICLE_SPEED;

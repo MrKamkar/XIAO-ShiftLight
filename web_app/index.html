@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>XIAO ShiftLight — Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+  <!-- COUNTDOWN OVERLAY -->
+  <div class="countdown-overlay" id="countdownOverlay">
+    <div class="countdown-num" id="countdownNum">5</div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="header-logo">X</div>
+      <div class="header-text">
+        <h1>ShiftLight</h1>
+        <span>Acceleration Telemetry</span>
+      </div>
+    </div>
+    <div class="header-status">
+      <a href="viewer.html" class="btn nav-link">📈 Telemetry Viewer</a>
+      <button id="btnConnect" class="btn btn-primary btn-connect">BLE Connect</button>
+      <div id="connStatusDot" class="pulse-offline dot-margin"></div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+
+    <!-- COCKPIT -->
+    <div class="card cockpit" id="cockpit">
+      <div class="cockpit-top">
+        <div class="cockpit-corner corner-temp">
+          <div class="cockpit-corner-label">Coolant</div>
+          <div class="cockpit-corner-value"><span id="tempDisplay">--</span><span class="cockpit-corner-unit">°C</span></div>
+        </div>
+        <div class="cockpit-corner corner-speed">
+          <div class="cockpit-corner-label">Speed</div>
+          <div class="cockpit-corner-value"><span id="speedDisplay">0</span><span class="cockpit-corner-unit">km/h</span></div>
+        </div>
+      </div>
+
+      <canvas id="gaugeCanvas" width="380" height="200"></canvas>
+
+      <div class="mini-grid">
+        <div class="mini-item">
+          <div class="mini-value val-orange"><span id="valLoad">--</span></div>
+          <canvas id="loadCanvas" width="120" height="6" class="mini-bar"></canvas>
+          <div class="mini-label">Load</div>
+        </div>
+        <div class="mini-item">
+          <div class="mini-value val-green"><span id="valVolt">--</span></div>
+          <canvas id="voltCanvas" width="120" height="6" class="mini-bar"></canvas>
+          <div class="mini-label">Battery</div>
+        </div>
+        <div class="mini-item">
+          <div class="mini-value val-yellow"><span id="valTps">--</span></div>
+          <canvas id="tpsCanvas" width="120" height="6" class="mini-bar"></canvas>
+          <div class="mini-label">Throttle</div>
+        </div>
+        <div class="mini-item">
+          <div class="mini-value val-text-1"><span id="valIat">--</span><span class="mini-unit">°C</span></div>
+          <div class="mini-label mt-8">In-Temp</div>
+        </div>
+        <div class="mini-item">
+          <div class="mini-value val-text-1"><span id="valMap">--</span><span class="mini-unit">kPa</span></div>
+          <div class="mini-label mt-8">Boost</div>
+        </div>
+        <div class="mini-item">
+          <div class="mini-value val-blue"><span id="valFuel">--</span></div>
+          <canvas id="fuelCanvas" width="120" height="6" class="mini-bar"></canvas>
+          <div class="mini-label">Fuel</div>
+        </div>
+      </div>
+
+      <div id="sysState" class="sys-state state-offline">Link Offline... Złącz BLE by rozpocząć.</div>
+    </div>
+
+    <!-- G-FORCE + TIMER -->
+    <div class="grid-2col">
+      <div class="card gforce-card">
+        <div class="card-title"><span class="icon">💥</span> G-Force Telemetry</div>
+        <canvas id="telemetryCanvas" width="460" height="140"></canvas>
+      </div>
+      <div class="card timer-card">
+        <div class="card-title"><span class="icon">🏁</span> 0–100 km/h</div>
+        <div class="timer-display" id="timeDisplay">0.00s</div>
+        <div class="timer-buttons">
+          <button class="btn btn-launch flex-2" onclick="startTimer()">Launch Sequence</button>
+          <button class="btn btn-cancel flex-1" id="btnCancel" onclick="cancelTimer()">Cancel</button>
+        </div>
+        <div class="timer-status status-blue" id="timerStatus"></div>
+      </div>
+    </div>
+
+    <!-- LOGGER + SETTINGS -->
+    <div class="grid-2col">
+      <div class="card logger-card">
+        <div class="card-title"><span class="icon">💾</span> Flash Data Logger</div>
+        <div class="logger-header">
+          <div class="logger-status">
+            <div class="rec-dot" id="logIndicator"></div>
+            <span>Recording</span>
+          </div>
+        </div>
+        <div class="logger-buttons">
+          <button class="btn btn-rec flex-1" id="btnLogStart" onclick="startLogging()">▶ REC</button>
+          <button class="btn btn-stop flex-1" id="btnLogStop" onclick="stopLogging()">⏹ Stop</button>
+        </div>
+        <p class="logger-info">Pobieranie plików nie jest dostępne po łączu BLE. Użyj USB.</p>
+      </div>
+
+      <div class="card settings-card">
+        <div class="card-title"><span class="icon">⚙️</span> Vehicle Settings</div>
+        <div class="setting-group">
+          <div class="setting-label">
+            Shift Light RPM
+            <span class="setting-value" id="rpmVal">6000</span>
+          </div>
+          <input type="range" id="rpmLimit" min="1000" max="10000" step="100" value="6000" oninput="updateVal('rpmVal', this.value)">
+        </div>
+        <div class="setting-group">
+          <div class="setting-label">
+            LED Brightness
+            <span class="setting-value" id="brtVal">50</span>
+          </div>
+          <input type="range" id="brightness" min="0" max="255" step="1" value="50" oninput="updateVal('brtVal', this.value)">
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Eco Drive Mode</div>
+            <div class="toggle-desc">Delikatna jazda, niższe RPM</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="ecoMode">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Buzzer Audio</div>
+            <div class="toggle-desc">Dźwiękowe ostrzeżenia</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="buzzerMode" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button class="btn btn-primary btn-save" onclick="saveSettings()" id="btnSave">Apply Configuration</button>
+        <div id="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

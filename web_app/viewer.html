@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XIAO Telemetry Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="header-logo">X</div>
+      <div class="header-title">Telemetry Analyzer <span>XIAO ShiftLight</span></div>
+    </div>
+    <div class="header-actions">
+      <a href="index.html" class="btn btn-nav">🔙 Dashboard</a>
+      <button class="btn" onclick="document.getElementById('fileInput').click()">
+        📂 Import CSV
+      </button>
+      <button class="btn d-none" onclick="resetAllZoom()" id="btnResetZoom">
+        🔍 Reset Zoom
+      </button>
+      <button class="btn btn-danger d-none" onclick="clearAllSessions()" id="btnClearAll">
+        🗑 Clear All
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <!-- DROP ZONE -->
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".csv,.txt" multiple>
+      <div class="drop-icon">📊</div>
+      <div class="drop-title">Drag & Drop your telemetry CSV files</div>
+      <div class="drop-subtitle">
+        Exported from XIAO ShiftLight via <kbd>💾 EXPORT CSV</kbd> into your phone/PC.<br>
+        Upload multiple files to compare sessions side-by-side.
+      </div>
+    </div>
+
+    <!-- SESSION CHIPS -->
+    <div class="sessions-bar" id="sessionsBar"></div>
+
+    <!-- CONTENT -->
+    <div id="contentArea" class="d-none">
+
+      <!-- TABS -->
+      <div class="tabs" id="mainTabs">
+        <button class="tab active" data-tab="overview">📈 Overview</button>
+        <button class="tab" data-tab="charts">📊 Charts</button>
+        <button class="tab" data-tab="compare">🏁 Compare</button>
+        <button class="tab" data-tab="raw">📋 Raw Data</button>
+      </div>
+
+      <!-- TAB: OVERVIEW -->
+      <div class="tab-panel active" id="panel-overview">
+        <div class="stats-grid" id="statsGrid"></div>
+        <div class="two-col mt-20">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title"><span class="icon">🏎️</span> RPM vs Speed</div>
+            </div>
+            <div class="chart-container"><canvas id="chartOverviewRpmSpeed"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title"><span class="icon">⚡</span> G-Force</div>
+            </div>
+            <div class="chart-container"><canvas id="chartOverviewGForce"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: CHARTS -->
+      <div class="tab-panel" id="panel-charts">
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title"><span class="icon">🔴</span> RPM Over Time</div>
+            </div>
+            <div class="chart-container"><canvas id="chartRPM"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title"><span class="icon">🚀</span> Speed (km/h)</div>
+            </div>
+            <div class="chart-container"><canvas id="chartSpeed"></canvas></div>
+          </div>
+          <div class="two-col">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title"><span class="icon">🌡️</span> Coolant Temp (°C)</div>
+              </div>
+              <div class="chart-container"><canvas id="chartTemp"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title"><span class="icon">🔋</span> Battery Voltage (V)</div>
+              </div>
+              <div class="chart-container"><canvas id="chartVolt"></canvas></div>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title"><span class="icon">⚙️</span> Engine Load (%)</div>
+              </div>
+              <div class="chart-container"><canvas id="chartLoad"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title"><span class="icon">🎚️</span> Throttle Position (%)</div>
+              </div>
+              <div class="chart-container"><canvas id="chartTPS"></canvas></div>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title"><span class="icon">💨</span> Intake Air Temp (°C)</div>
+              </div>
+              <div class="chart-container"><canvas id="chartIAT"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title"><span class="icon">📊</span> Manifold Pressure (kPa)</div>
+              </div>
+              <div class="chart-container"><canvas id="chartMAP"></canvas></div>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title"><span class="icon">⛽</span> Fuel Level (%)</div>
+              </div>
+              <div class="chart-container"><canvas id="chartFuel"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title"><span class="icon">💥</span> G-Force (g)</div>
+              </div>
+              <div class="chart-container"><canvas id="chartGForce"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: COMPARE -->
+      <div class="tab-panel" id="panel-compare">
+        <div id="compareContent"></div>
+      </div>
+
+      <!-- TAB: RAW DATA -->
+      <div class="tab-panel" id="panel-raw">
+        <div class="session-select-row">
+          <span class="session-select-label">Session:</span>
+          <select class="session-select" id="rawSessionSelect" onchange="renderRawData()"></select>
+        </div>
+        <div id="rawDataContainer"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="viewer.js"></script>
+</body>
+</html>

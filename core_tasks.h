@@ -1,6 +1,6 @@
 #pragma once
 
-// Rdzeń 0 (Protocol CPU): WiFi, Serwer WWW, CAN, Logowanie
+// Rdzeń 0 (Protocol CPU): Komunikacja BLE, CAN, Logowanie
 void taskCore0(void *pvParameters);
 
 // Rdzeń 1 (Application CPU): Wyświetlanie diod LED i animacje

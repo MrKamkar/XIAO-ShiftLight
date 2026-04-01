@@ -23,7 +23,7 @@ void stopDataLog() {
   isLogging = false; 
 }
 
-// Zadanie logowania - działa w tle, aby nie blokować CAN i WiFi
+// Zadanie logowania - działa w tle, aby nie blokować CAN i BLE
 void taskLogging(void *pvParameters) {
   TelemetryData data;
   File file;

@@ -32,7 +32,15 @@ extern volatile int shiftLimit;
 extern volatile int brightness;
 extern volatile bool ecoMode;
 extern volatile bool buzzerEnabled;
-extern volatile uint32_t lastWebPing;
+
+// Flagi i liczniki aktywności dla interfejsu Bluetooth
+extern volatile bool bleConnected;
+extern volatile uint32_t lastBLEActivity;
+
+// Definicje unikalnych adresów UUID dla usługi i charakterystyk BLE
+#define BLE_SERVICE_UUID   "4fafc201-1fb5-459e-8bcc-c5c9c331914b"
+#define BLE_TX_CHAR_UUID   "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define BLE_RX_CHAR_UUID   "beb5483e-36e2-4688-b7f5-ea07361b26a8"
 
 /* Zmienne współdzielone między rdzeniami w RTOS
    "volatile" informuje kompilator, aby nie optymalizował tych zmiennych do rejestru operacyjnego CPU,
