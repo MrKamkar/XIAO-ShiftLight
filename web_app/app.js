@@ -377,7 +377,7 @@ function renderCanvas() {
     
     // Obwód tła
     ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0);
-    ctx.lineWidth = 18; ctx.strokeStyle = 'var(--bg-card-alt)'; ctx.stroke();
+    ctx.lineWidth = 18; ctx.strokeStyle = '#111820'; ctx.stroke();
     
     let fill = Math.min(c_rpm / maxRpm, 1.0);
     if (fill > 0) {
@@ -394,15 +394,15 @@ function renderCanvas() {
       // Stroboskop
       if (c_rpm >= activeLimit) {
         let blink = (Math.floor(Date.now() / 80) % 2 === 0);
-        strokeCol = blink ? 'var(--red)' : '#1a0000';
-        shadowCol = blink ? 'var(--red)' : 'transparent';
+        strokeCol = blink ? '#ff4757' : '#1a0000';
+        shadowCol = blink ? '#ff4757' : 'transparent';
       } else if (isEco) {
-        if (c_rpm < 1500) strokeCol = 'var(--green)';
-        else if (c_rpm < 2000) strokeCol = 'var(--yellow)';
-        else strokeCol = 'var(--red)';
+        if (c_rpm < 1500) strokeCol = '#2ed573';
+        else if (c_rpm < 2000) strokeCol = '#ffa502';
+        else strokeCol = '#ff4757';
         shadowCol = strokeCol;
       } else if (isCold) {
-        strokeCol = 'var(--blue)'; shadowCol = strokeCol;
+        strokeCol = '#1e90ff'; shadowCol = strokeCol;
       } else {
         // Normalny gradient
         let grad = ctx.createLinearGradient(0, cy, w, cy);
@@ -426,9 +426,9 @@ function renderCanvas() {
     }
     
     // Obroty na środku
-    ctx.fillStyle = 'var(--text-1)'; ctx.font = 'bold 52px "Segoe UI"'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#e6edf3'; ctx.font = 'bold 52px "Segoe UI"'; ctx.textAlign = 'center';
     ctx.fillText(Math.round(c_rpm), cx, cy - 10);
-    ctx.fillStyle = 'var(--text-3)'; ctx.font = 'bold 14px "Segoe UI"';
+    ctx.fillStyle = '#484f58'; ctx.font = 'bold 14px "Segoe UI"';
     ctx.fillText("RPM", cx, cy + 12);
   }
 
@@ -438,7 +438,7 @@ function renderCanvas() {
     if (!cnv) return;
     let ctx = cnv.getContext("2d"), w = cnv.width, h = cnv.height;
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = 'var(--bg-card-alt)'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#111820'; ctx.fillRect(0, 0, w, h);
     let fill = Math.max(0, Math.min(valFill, 1.0));
     ctx.fillStyle = colorBase; ctx.shadowBlur = 6; ctx.shadowColor = colorBase;
     ctx.fillRect(0, 0, w * fill, h); ctx.shadowBlur = 0;
@@ -455,20 +455,20 @@ function renderCanvas() {
     let ctx = cTel.getContext("2d");
     let w = cTel.width, h = cTel.height;
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "var(--bg-card-alt)"; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "#0a0d12"; ctx.fillRect(0, 0, w, h);
     
     let baseLine = h - 5;
     let maxG = 1.5;
     let step = w / (gHistory.length - 1);
     
-    ctx.strokeStyle = "var(--border)"; ctx.lineWidth = 1;
+    ctx.strokeStyle = "#1e2530"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, baseLine); ctx.lineTo(w, baseLine); ctx.stroke();
     
-    drawMountain(ctx, true, "var(--green)", "rgba(46,213,115,0.2)", w, baseLine, maxG, step, gHistory);
-    drawMountain(ctx, false, "var(--red)", "rgba(255,71,87,0.2)", w, baseLine, maxG, step, gHistory);
+    drawMountain(ctx, true, "#2ed573", "rgba(46,213,115,0.2)", w, baseLine, maxG, step, gHistory);
+    drawMountain(ctx, false, "#ff4757", "rgba(255,71,87,0.2)", w, baseLine, maxG, step, gHistory);
     
     let currentG = gHistory[gHistory.length - 1];
-    ctx.fillStyle = currentG > 0.05 ? "var(--green)" : (currentG < -0.05 ? "var(--red)" : "var(--text-3)");
+    ctx.fillStyle = currentG > 0.05 ? "#2ed573" : (currentG < -0.05 ? "#ff4757" : "#484f58");
     ctx.font = 'bold 13px "Segoe UI"'; ctx.textAlign = 'right';
     let title = currentG > 0.05 ? "ACCEL " : (currentG < -0.05 ? "BRAKE " : "IDLE ");
     ctx.fillText(title + Math.abs(currentG).toFixed(2) + "G", w - 10, 20);
