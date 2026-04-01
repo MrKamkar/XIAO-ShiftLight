@@ -13,16 +13,16 @@ const COLORS = [
 ];
 
 const FIELDS = [
-  { key: 'rpm',   label: 'RPM',        unit: '' },
-  { key: 'speed', label: 'Speed',      unit: 'km/h' },
-  { key: 'temp',  label: 'Coolant',    unit: '°C' },
-  { key: 'load',  label: 'Load',       unit: '%' },
-  { key: 'volt',  label: 'Voltage',    unit: 'V' },
-  { key: 'iat',   label: 'IAT',        unit: '°C' },
-  { key: 'tps',   label: 'Throttle',   unit: '%' },
-  { key: 'map',   label: 'MAP',        unit: 'kPa' },
-  { key: 'fuel',  label: 'Fuel',       unit: '%' },
-  { key: 'gforce',label: 'G-Force',    unit: 'g' },
+  { key: 'rpm', label: 'RPM', unit: '' },
+  { key: 'speed', label: 'Speed', unit: 'km/h' },
+  { key: 'temp', label: 'Coolant', unit: '°C' },
+  { key: 'load', label: 'Load', unit: '%' },
+  { key: 'volt', label: 'Voltage', unit: 'V' },
+  { key: 'iat', label: 'IAT', unit: '°C' },
+  { key: 'tps', label: 'Throttle', unit: '%' },
+  { key: 'map', label: 'MAP', unit: 'kPa' },
+  { key: 'fuel', label: 'Fuel', unit: '%' },
+  { key: 'gforce', label: 'G-Force', unit: 'g' },
 ];
 
 let sessions = [];
@@ -50,17 +50,17 @@ function parseCSV(text, filename) {
     const parts = lines[i].split(',');
     if (parts.length < 11) continue;
     const row = {
-      time:   parseInt(parts[0])   || 0,
-      rpm:    parseInt(parts[1])   || 0,
-      speed:  parseInt(parts[2])   || 0,
-      temp:   parseInt(parts[3])   || 0,
-      load:   parseInt(parts[4])   || 0,
-      volt:   parseFloat(parts[5]) || 0,
-      iat:    parseInt(parts[6])   || 0,
-      tps:    parseInt(parts[7])   || 0,
-      map:    parseInt(parts[8])   || 0,
-      fuel:   parseInt(parts[9])   || 0,
-      gforce: parseFloat(parts[10])|| 0,
+      time: parseInt(parts[0]) || 0,
+      rpm: parseInt(parts[1]) || 0,
+      speed: parseInt(parts[2]) || 0,
+      temp: parseInt(parts[3]) || 0,
+      load: parseInt(parts[4]) || 0,
+      volt: parseFloat(parts[5]) || 0,
+      iat: parseInt(parts[6]) || 0,
+      tps: parseInt(parts[7]) || 0,
+      map: parseInt(parts[8]) || 0,
+      fuel: parseInt(parts[9]) || 0,
+      gforce: parseFloat(parts[10]) || 0,
     };
     rows.push(row);
   }
@@ -177,21 +177,21 @@ function renderSessionChips() {
     <div class="session-chip" style="border-color: ${s.color.line}33;">
       <span class="dot" style="background: ${s.color.line}; box-shadow: 0 0 8px ${s.color.bg};"></span>
       <span>${s.name}</span>
-      <span class="points-count">${s.rows.length} pts • ${s.stats.duration >= 60 ? Math.floor(s.stats.duration/60) + 'm ' + Math.floor(s.stats.duration%60) + 's' : s.stats.duration.toFixed(1) + 's'}</span>
+      <span class="points-count">${s.rows.length} pts • ${s.stats.duration >= 60 ? Math.floor(s.stats.duration / 60) + 'm ' + Math.floor(s.stats.duration % 60) + 's' : s.stats.duration.toFixed(1) + 's'}</span>
       <button class="remove" onclick="removeSession('${s.id}')" title="Remove session">✕</button>
     </div>
   `).join('');
 }
 
 // Make removeSession accessible from HTML clicks
-window.removeSession = function(id) {
+window.removeSession = function (id) {
   sessions = sessions.filter(s => s.id !== id);
   // Reassign colors
   sessions.forEach((s, i) => s.color = COLORS[i % COLORS.length]);
   refreshUI();
 };
 
-window.clearAllSessions = function() {
+window.clearAllSessions = function () {
   if (!confirm('Remove all sessions?')) return;
   sessions = [];
   refreshUI();
@@ -209,14 +209,14 @@ function renderStats() {
   const s = last.stats;
 
   const cards = [
-    { label: 'Peak RPM',       value: s.rpm.max,          unit: '',     color: 'var(--accent-red)',    detail: `Avg: ${Math.round(s.rpm.avg)}` },
-    { label: 'Top Speed',      value: s.speed.max,        unit: 'km/h', color: 'var(--accent-blue)',   detail: `Avg: ${Math.round(s.speed.avg)} km/h` },
-    { label: 'Max G-Force',    value: s.gforce.max.toFixed(2), unit: 'g', color: 'var(--accent-green)', detail: `Min: ${s.gforce.min.toFixed(2)}g` },
-    { label: 'Max Load',       value: s.load.max,         unit: '%',    color: 'var(--accent-orange)', detail: `Avg: ${Math.round(s.load.avg)}%` },
-    { label: 'Peak Temp',      value: s.temp.max,         unit: '°C',   color: 'var(--accent-yellow)', detail: `Min: ${s.temp.min}°C` },
-    { label: 'Voltage',        value: s.volt.avg.toFixed(1), unit: 'V', color: 'var(--accent-cyan)',   detail: `${s.volt.min.toFixed(1)}–${s.volt.max.toFixed(1)}V` },
-    { label: 'Duration',       value: s.duration >= 60 ? `${Math.floor(s.duration / 60)}m ${Math.floor(s.duration % 60)}` : s.duration.toFixed(1), unit: 's', color: 'var(--accent-purple)', detail: `${s.points} data points` },
-    { label: 'Max Throttle',   value: s.tps.max,          unit: '%',    color: 'var(--accent-pink)',   detail: `Avg: ${Math.round(s.tps.avg)}%` },
+    { label: 'Peak RPM', value: s.rpm.max, unit: '', color: 'var(--accent-red)', detail: `Avg: ${Math.round(s.rpm.avg)}` },
+    { label: 'Top Speed', value: s.speed.max, unit: 'km/h', color: 'var(--accent-blue)', detail: `Avg: ${Math.round(s.speed.avg)} km/h` },
+    { label: 'Max G-Force', value: s.gforce.max.toFixed(2), unit: 'g', color: 'var(--accent-green)', detail: `Min: ${s.gforce.min.toFixed(2)}g` },
+    { label: 'Max Load', value: s.load.max, unit: '%', color: 'var(--accent-orange)', detail: `Avg: ${Math.round(s.load.avg)}%` },
+    { label: 'Peak Temp', value: s.temp.max, unit: '°C', color: 'var(--accent-yellow)', detail: `Min: ${s.temp.min}°C` },
+    { label: 'Voltage', value: s.volt.avg.toFixed(1), unit: 'V', color: 'var(--accent-cyan)', detail: `${s.volt.min.toFixed(1)}–${s.volt.max.toFixed(1)}V` },
+    { label: 'Duration', value: s.duration >= 60 ? `${Math.floor(s.duration / 60)}m ${Math.floor(s.duration % 60)}` : s.duration.toFixed(1), unit: 's', color: 'var(--accent-purple)', detail: `${s.points} data points` },
+    { label: 'Max Throttle', value: s.tps.max, unit: '%', color: 'var(--accent-pink)', detail: `Avg: ${Math.round(s.tps.avg)}%` },
   ];
 
   grid.innerHTML = cards.map(c => `
@@ -268,7 +268,7 @@ const chartDefaults = {
       cornerRadius: 8,
       displayColors: true,
       callbacks: {
-        title: function(context) {
+        title: function (context) {
           if (!context || !context.length) return '';
           return 'Time: ' + formatTime(context[0].parsed.x);
         }
@@ -278,11 +278,11 @@ const chartDefaults = {
   scales: {
     x: {
       type: 'linear',
-      ticks: { 
-        color: '#484f58', 
-        font: { family: 'JetBrains Mono', size: 10 }, 
+      ticks: {
+        color: '#484f58',
+        font: { family: 'JetBrains Mono', size: 10 },
         maxTicksLimit: 15,
-        callback: function(value) { return formatTime(value); }
+        callback: function (value) { return formatTime(value); }
       },
       grid: { color: 'rgba(33,38,45,0.5)', lineWidth: 1 },
       title: { display: true, text: 'Time', color: '#484f58', font: { family: 'Inter', size: 11, weight: 600 } }
@@ -389,13 +389,13 @@ function createChart(canvasId, fieldKey, unit, extraOpts) {
   }
 }
 
-window.resetChartZoom = function(chartId) {
+window.resetChartZoom = function (chartId) {
   if (charts[chartId]) {
     charts[chartId].resetZoom();
   }
 };
 
-window.resetAllZoom = function() {
+window.resetAllZoom = function () {
   Object.values(charts).forEach(c => { if (c.resetZoom) c.resetZoom(); });
 };
 
@@ -405,15 +405,15 @@ function renderAllCharts() {
   createChart('chartOverviewGForce', 'gforce', 'g');
 
   // Detail charts
-  createChart('chartRPM',    'rpm',    'RPM');
-  createChart('chartSpeed',  'speed',  'km/h');
-  createChart('chartTemp',   'temp',   '°C');
-  createChart('chartVolt',   'volt',   'V');
-  createChart('chartLoad',   'load',   '%');
-  createChart('chartTPS',    'tps',    '%');
-  createChart('chartIAT',    'iat',    '°C');
-  createChart('chartMAP',    'map',    'kPa');
-  createChart('chartFuel',   'fuel',   '%');
+  createChart('chartRPM', 'rpm', 'RPM');
+  createChart('chartSpeed', 'speed', 'km/h');
+  createChart('chartTemp', 'temp', '°C');
+  createChart('chartVolt', 'volt', 'V');
+  createChart('chartLoad', 'load', '%');
+  createChart('chartTPS', 'tps', '%');
+  createChart('chartIAT', 'iat', '°C');
+  createChart('chartMAP', 'map', 'kPa');
+  createChart('chartFuel', 'fuel', '%');
   createChart('chartGForce', 'gforce', 'g');
 }
 
@@ -502,19 +502,19 @@ function renderCompareTable() {
   }
 
   const metrics = [
-    { label: 'Duration',       fn: s => s.stats.duration >= 60 ? `${Math.floor(s.stats.duration/60)}m ${Math.floor(s.stats.duration%60)}s` : `${s.stats.duration.toFixed(1)}s` },
-    { label: 'Data Points',    fn: s => s.stats.points },
-    { label: 'Peak RPM',       fn: s => s.stats.rpm.max,          compare: 'max' },
-    { label: 'Avg RPM',        fn: s => Math.round(s.stats.rpm.avg), compare: 'max' },
-    { label: 'Top Speed',      fn: s => s.stats.speed.max + ' km/h', numFn: s => s.stats.speed.max, compare: 'max' },
-    { label: 'Avg Speed',      fn: s => Math.round(s.stats.speed.avg) + ' km/h', numFn: s => s.stats.speed.avg, compare: 'max' },
-    { label: 'Max G-Force',    fn: s => s.stats.gforce.max.toFixed(2) + 'g', numFn: s => s.stats.gforce.max, compare: 'max' },
+    { label: 'Duration', fn: s => s.stats.duration >= 60 ? `${Math.floor(s.stats.duration / 60)}m ${Math.floor(s.stats.duration % 60)}s` : `${s.stats.duration.toFixed(1)}s` },
+    { label: 'Data Points', fn: s => s.stats.points },
+    { label: 'Peak RPM', fn: s => s.stats.rpm.max, compare: 'max' },
+    { label: 'Avg RPM', fn: s => Math.round(s.stats.rpm.avg), compare: 'max' },
+    { label: 'Top Speed', fn: s => s.stats.speed.max + ' km/h', numFn: s => s.stats.speed.max, compare: 'max' },
+    { label: 'Avg Speed', fn: s => Math.round(s.stats.speed.avg) + ' km/h', numFn: s => s.stats.speed.avg, compare: 'max' },
+    { label: 'Max G-Force', fn: s => s.stats.gforce.max.toFixed(2) + 'g', numFn: s => s.stats.gforce.max, compare: 'max' },
     { label: 'Min G-Force (Brake)', fn: s => s.stats.gforce.min.toFixed(2) + 'g', numFn: s => s.stats.gforce.min, compare: 'min' },
-    { label: 'Max Load',       fn: s => s.stats.load.max + '%',   numFn: s => s.stats.load.max, compare: 'max' },
-    { label: 'Peak Temp',      fn: s => s.stats.temp.max + '°C',  numFn: s => s.stats.temp.max },
-    { label: 'Avg Voltage',    fn: s => s.stats.volt.avg.toFixed(1) + 'V', numFn: s => s.stats.volt.avg },
-    { label: 'Max Throttle',   fn: s => s.stats.tps.max + '%',    numFn: s => s.stats.tps.max, compare: 'max' },
-    { label: 'Max MAP',        fn: s => s.stats.map.max + ' kPa', numFn: s => s.stats.map.max, compare: 'max' },
+    { label: 'Max Load', fn: s => s.stats.load.max + '%', numFn: s => s.stats.load.max, compare: 'max' },
+    { label: 'Peak Temp', fn: s => s.stats.temp.max + '°C', numFn: s => s.stats.temp.max },
+    { label: 'Avg Voltage', fn: s => s.stats.volt.avg.toFixed(1) + 'V', numFn: s => s.stats.volt.avg },
+    { label: 'Max Throttle', fn: s => s.stats.tps.max + '%', numFn: s => s.stats.tps.max, compare: 'max' },
+    { label: 'Max MAP', fn: s => s.stats.map.max + ' kPa', numFn: s => s.stats.map.max, compare: 'max' },
   ];
 
   let html = `
@@ -559,12 +559,12 @@ function renderCompareTable() {
 // ============================================================
 // RAW DATA TABLE
 // ============================================================
-window.renderRawDataSelector = function() {
+window.renderRawDataSelector = function () {
   const sel = document.getElementById('rawSessionSelect');
   sel.innerHTML = sessions.map((s, i) => `<option value="${i}">${s.name} (${s.rows.length} rows)</option>`).join('');
 };
 
-window.renderRawData = function() {
+window.renderRawData = function () {
   const sel = document.getElementById('rawSessionSelect');
   const idx = parseInt(sel.value) || 0;
   const s = sessions[idx];
@@ -701,5 +701,5 @@ if (new URLSearchParams(window.location.search).get('demo') === 'true') {
     sessions.push(demo2);
 
     refreshUI();
-  } catch(e) { console.error('Demo generation failed:', e); }
+  } catch (e) { console.error('Demo generation failed:', e); }
 }

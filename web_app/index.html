@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pl">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -7,6 +8,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
 </head>
+
 <body>
 
   <!-- COUNTDOWN OVERLAY -->
@@ -24,8 +26,9 @@
       </div>
     </div>
     <div class="header-status">
-      <a href="viewer.html" class="btn nav-link">📈 Telemetry Viewer</a>
-      <button id="btnConnect" class="btn btn-primary btn-connect">BLE Connect</button>
+      <a href="viewer.html" class="btn nav-link"><span class="icon">📈</span> <span class="nav-text">Telemetry
+          Viewer</span></a>
+      <button id="btnConnect" class="btn btn-primary btn-connect"><span class="connect-text">BLE Connect</span></button>
       <div id="connStatusDot" class="pulse-offline dot-margin"></div>
     </div>
   </header>
@@ -38,11 +41,13 @@
       <div class="cockpit-top">
         <div class="cockpit-corner corner-temp">
           <div class="cockpit-corner-label">Coolant</div>
-          <div class="cockpit-corner-value"><span id="tempDisplay">--</span><span class="cockpit-corner-unit">°C</span></div>
+          <div class="cockpit-corner-value"><span id="tempDisplay">--</span><span class="cockpit-corner-unit">°C</span>
+          </div>
         </div>
         <div class="cockpit-corner corner-speed">
           <div class="cockpit-corner-label">Speed</div>
-          <div class="cockpit-corner-value"><span id="speedDisplay">0</span><span class="cockpit-corner-unit">km/h</span></div>
+          <div class="cockpit-corner-value"><span id="speedDisplay">0</span><span
+              class="cockpit-corner-unit">km/h</span></div>
         </div>
       </div>
 
@@ -126,14 +131,16 @@
             Shift Light RPM
             <span class="setting-value" id="rpmVal">6000</span>
           </div>
-          <input type="range" id="rpmLimit" min="1000" max="10000" step="100" value="6000" oninput="updateVal('rpmVal', this.value)">
+          <input type="range" id="rpmLimit" min="1000" max="10000" step="100" value="6000"
+            oninput="updateVal('rpmVal', this.value)">
         </div>
         <div class="setting-group">
           <div class="setting-label">
             LED Brightness
             <span class="setting-value" id="brtVal">50</span>
           </div>
-          <input type="range" id="brightness" min="0" max="255" step="1" value="50" oninput="updateVal('brtVal', this.value)">
+          <input type="range" id="brightness" min="0" max="255" step="1" value="50"
+            oninput="updateVal('brtVal', this.value)">
         </div>
         <div class="toggle-row">
           <div>
@@ -163,4 +170,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>
