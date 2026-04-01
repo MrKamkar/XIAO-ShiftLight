@@ -64,10 +64,12 @@ body {
   background: var(--green);
   box-shadow: 0 0 8px rgba(46,213,115,0.6);
   animation: pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
 }
 .header-status .pulse-offline {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--text-3);
+  flex-shrink: 0;
 }
 
 @keyframes pulse {
