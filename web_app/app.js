@@ -55,12 +55,14 @@ const UI = {
   gaugeLoad: null,
   gaugeVolt: null,
   gaugeTps: null,
-  gaugeFuel: null
+  gaugeFuel: null,
+  countdownOverlay: null,
+  countdownNum: null
 };
 
 let lastData = {};
 let rpmGradient = null;
-let cachedRpmLimit = 6000; // Cache dla limitu (oszczędza parseInt w pętli 60fps)
+let cachedRpmLimit = 6000;
 
 // ==========================================
 // 1. POŁĄCZENIE BLUETOOTH
@@ -124,9 +126,7 @@ function handleNotifications(event) {
   const dataLen = value.byteLength;
   if (dataLen === 0) return;
 
-  if (value.getUint8(0) === 0xBB) {
-    binIndex = 0;
-  }
+  if (value.getUint8(0) === 0xBB) binIndex = 0;
 
   if (binIndex > 0 || value.getUint8(0) === 0xBB) {
     for (let i = 0; i < dataLen; i++) {
@@ -169,27 +169,28 @@ function parseBinaryTelemetry(view) {
 }
 
 function applyTelemetryToUI(data) {
+    // UI Update - Teletekst / Liczby
     if (lastData.speed !== data.speed) UI.speed.innerText = data.speed;
     
-    const curTemp = data.temp !== undefined ? data.temp : (lastData.temp || 999);
+    const curTemp = data.temp !== undefined ? data.temp : (lastData.temp !== undefined ? lastData.temp : 999);
     if (lastData.temp !== curTemp) UI.temp.innerText = (curTemp === 999) ? "--" : curTemp;
 
     t_rpm = data.rpm !== undefined ? data.rpm : 0;
-    t_load = data.load !== undefined ? data.load : (lastData.load || 0);
-    t_volt = data.volt !== undefined ? data.volt : (lastData.volt || 12.0);
+    t_load = data.load !== undefined ? data.load : (lastData.load !== undefined ? lastData.load : 0);
+    t_volt = data.volt !== undefined ? data.volt : (lastData.volt !== undefined ? lastData.volt : 12.0);
 
     if (lastData.load !== t_load) UI.valLoad.innerText = t_load + "%";
     if (lastData.volt !== t_volt.toFixed(1)) UI.valVolt.innerText = t_volt.toFixed(1) + "V";
 
-    t_tps = data.tps !== undefined ? data.tps : (lastData.tps || 0);
+    t_tps = data.tps !== undefined ? data.tps : (lastData.tps !== undefined ? lastData.tps : 0);
     if (lastData.tps !== t_tps) UI.valTps.innerText = t_tps + "%";
     
-    const iatVal = data.iat !== undefined ? data.iat : (lastData.iat || 999);
+    const iatVal = data.iat !== undefined ? data.iat : (lastData.iat !== undefined ? lastData.iat : 999);
     if (lastData.iat !== iatVal) UI.valIat.innerText = iatVal !== 999 ? iatVal : "--";
     
     if (data.map !== undefined && lastData.map !== data.map) UI.valMap.innerText = data.map;
     
-    t_fuel = data.fuel !== undefined ? data.fuel : (lastData.fuel || 100);
+    t_fuel = data.fuel !== undefined ? data.fuel : (lastData.fuel !== undefined ? lastData.fuel : 100);
     if (lastData.fuel !== t_fuel) UI.valFuel.innerText = t_fuel + "%";
 
     if (lastData.log !== data.log) {
@@ -199,6 +200,7 @@ function applyTelemetryToUI(data) {
 
     calculateG(data.speed, data.gforce);
 
+    // Status Systemu
     let ecoEnabled = UI.ecoMode.checked;
     let stCls = "sys-state", stTxt = "";
     if (curTemp === 999) { stCls += " state-offline"; stTxt = "⏳ Oczekiwanie Na Dane ECU (CAN)..."; }
@@ -246,7 +248,7 @@ async function sendCmd(cmdStr) {
   try {
     await rxCharacteristic.writeValue(textEncoder.encode(cmdStr));
     return true;
-  } catch (error) { console.error("Wysłanie zablokowane:", error); return false; }
+  } catch (error) { console.error("Write Error:", error); return false; }
 }
 
 function saveSettings() {
@@ -273,7 +275,7 @@ function stopLogging() { sendCmd("cmd:log_stop"); }
 function cancelTimer() {
   sendCmd("cmd:cancel0100");
   UI.timerStatus.innerText = "ABORTING..."; UI.timerStatus.style.color = "var(--red)";
-  document.getElementById('countdownOverlay').style.display = 'none';
+  if (UI.countdownOverlay) UI.countdownOverlay.style.display = 'none';
 }
 
 function startTimer() { sendCmd("cmd:start0100"); showCountdownOverlay(); }
@@ -291,6 +293,19 @@ function updateVal(id, val) {
 // ==========================================
 // 4. GRAFIKI I CANVAS (RENDER ENGINE)
 // ==========================================
+function showCountdownOverlay() {
+  if (!UI.countdownOverlay) return;
+  UI.countdownOverlay.style.display = 'flex'; UI.countdownOverlay.style.opacity = '1'; 
+  UI.countdownNum.style.color = "var(--red)"; UI.countdownNum.innerText = "5";
+  [4,3,2,1].forEach((v, i) => setTimeout(() => UI.countdownNum.innerText = v, (i+1)*1000));
+  setTimeout(() => {
+    UI.countdownNum.innerText = "GO!"; UI.countdownNum.style.color = "var(--green)";
+    setTimeout(() => { 
+        UI.countdownOverlay.style.opacity = '0'; 
+        setTimeout(() => UI.countdownOverlay.style.display = 'none', 300); 
+    }, 800);
+  }, 5000);
+}
 
 function calculateG(speedKmh, currentG = null) {
   if (currentG !== null) {
@@ -355,7 +370,6 @@ function renderCanvas() {
   c_volt += (t_volt - c_volt) * 0.1;
   c_tps += (t_tps - c_tps) * 0.2;
   c_fuel += (t_fuel - c_fuel) * 0.1;
-
   drawGaugeDynamic();
   drawMiniBar(UI.gaugeLoad, c_load / 100, '#ff6348');
   drawMiniBar(UI.gaugeVolt, (c_volt - 10) / 5, '#2ed573');
@@ -402,16 +416,6 @@ function drawTelemetryGraph() {
   drawMountain(ctx, false, "#ff4757", "rgba(255,71,87,0.2)", w, baseLine, maxG, step, gHistory);
 }
 
-function showCountdownOverlay() {
-  let overlay = document.getElementById('countdownOverlay'), num = document.getElementById('countdownNum');
-  overlay.style.display = 'flex'; overlay.style.opacity = '1'; num.style.color = "var(--red)"; num.innerText = "5";
-  [4,3,2,1].forEach((v, i) => setTimeout(() => num.innerText = v, (i+1)*1000));
-  setTimeout(() => {
-    num.innerText = "GO!"; num.style.color = "var(--green)";
-    setTimeout(() => { overlay.style.opacity = '0'; setTimeout(() => overlay.style.display = 'none', 300); }, 800);
-  }, 5000);
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   UI.btnConnect = document.getElementById("btnConnect");
   UI.dotStatus = document.getElementById("connStatusDot"); UI.sysState = document.getElementById("sysState");
@@ -426,6 +430,8 @@ document.addEventListener("DOMContentLoaded", () => {
   UI.gaugeStatic = document.getElementById("gaugeStaticCanvas"); UI.gaugeDynamic = document.getElementById("gaugeCanvas");
   UI.gaugeLoad = document.getElementById('loadCanvas'); UI.gaugeVolt = document.getElementById('voltCanvas');
   UI.gaugeTps = document.getElementById('tpsCanvas'); UI.gaugeFuel = document.getElementById('fuelCanvas');
+  UI.countdownOverlay = document.getElementById('countdownOverlay');
+  UI.countdownNum = document.getElementById('countdownNum');
 
   initBLEEvents();
   cachedRpmLimit = parseInt(UI.rpmLimit.value) || 6000;
