@@ -106,7 +106,7 @@ body {
 .drop-icon {
   font-size: 48px; margin-bottom: 16px;
   background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
 }
 .drop-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
 .drop-subtitle { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
@@ -189,7 +189,7 @@ body {
   font-family: 'JetBrains Mono', monospace;
   font-size: 28px; font-weight: 700; line-height: 1;
   background: linear-gradient(135deg, var(--stat-color, #fff), var(--text-primary));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
 }
 .stat-unit { font-size: 13px; color: var(--text-secondary); font-weight: 400; margin-left: 2px; -webkit-text-fill-color: var(--text-secondary); }
 .stat-detail { font-size: 11px; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
