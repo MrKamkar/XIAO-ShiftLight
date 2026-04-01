@@ -119,20 +119,29 @@ void setupBLEServer() {
   BLEDevice::startAdvertising();
 }
 
-// Funkcja wywoływana cyklicznie przez rdzeń 0, wysyłająca paczkę JSON przez BLE
+// Funkcja wywoływana cyklicznie przez rdzeń 0, wysyłająca paczkę BINARNĄ przez BLE
 void sendBLETelemetry() {
   if (!bleConnected || pTxCharacteristic == NULL) return;
 
-  // Użycie statycznego bufora
-  static char jsonBuffer[380];
-  uint32_t cTime = (currentMode == MODE_0_100_MEASURING) ? (millis() - dragTimerStart) : 0;
+  // Tworzymy paczkę binarną (30 bajtów) zamiast 300 bajtów JSON
+  static TelemetryPacket pkg;
   
-  int len = snprintf(jsonBuffer, sizeof(jsonBuffer),
-           "{\"mode\":%d,\"speed\":%d,\"temp\":%d,\"load\":%d,\"volt\":%.1f,\"rpm\":%d,\"time\":%lu,\"current_time\":%lu,\"iat\":%d,\"tps\":%d,\"map\":%d,\"fuel\":%d,\"gforce\":%.2f,\"log\":%s}\n",
-           currentMode, currentSpeed, currentTemp, currentLoad, currentVolt, currentRPM, timerResult, cTime, currentIAT, currentTPS, currentMAP, currentFuel, currentGForce, isLogging ? "true" : "false");
+  pkg.mode = (uint8_t)currentMode;
+  pkg.speed = (uint8_t)currentSpeed;
+  pkg.temp = (int16_t)currentTemp;
+  pkg.load = (uint8_t)currentLoad;
+  pkg.volt = currentVolt;
+  pkg.rpm = (uint16_t)currentRPM;
+  pkg.timerResult = timerResult;
+  pkg.currentTime = (currentMode == MODE_0_100_MEASURING) ? (millis() - dragTimerStart) : 0;
+  pkg.iat = (int8_t)currentIAT;
+  pkg.tps = (uint8_t)currentTPS;
+  pkg.map = (uint16_t)currentMAP;
+  pkg.fuel = (uint8_t)currentFuel;
+  pkg.gforce = currentGForce;
+  pkg.logging = isLogging ? 1 : 0;
            
-  if (len > 0) {
-    pTxCharacteristic->setValue((uint8_t*)jsonBuffer, len);
-    pTxCharacteristic->notify();
-  }
+  // Wysyłka surowych bajtów struktury
+  pTxCharacteristic->setValue((uint8_t*)&pkg, sizeof(TelemetryPacket));
+  pTxCharacteristic->notify();
 }

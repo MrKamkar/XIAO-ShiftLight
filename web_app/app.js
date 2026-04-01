@@ -47,7 +47,13 @@ const UI = {
   rpmLimit: null,
   brightness: null,
   ecoMode: null,
-  buzzerMode: null
+  buzzerMode: null,
+  gaugeStatic: null,
+  gaugeDynamic: null,
+  gaugeLoad: null,
+  gaugeVolt: null,
+  gaugeTps: null,
+  gaugeFuel: null
 };
 
 // Pamięć ostatnich wartości, by nie odświeżać DOM bez potrzeby
@@ -68,10 +74,7 @@ function initBLEEvents() {
 
 async function connectBLE() {
   try {
-    console.log("Żądanie urządzenia Bluetooth...");
-    btnConnect.innerText = "Skanowanie...";
-    
-    // Zapytaj użytkownika o parowanie
+    console.log("Szukanie urządzenia...");
     bleDevice = await navigator.bluetooth.requestDevice({
       filters: [{ namePrefix: "XIAO_ShiftLight" }],
       optionalServices: [SERVICE_UUID]
@@ -79,18 +82,17 @@ async function connectBLE() {
 
     bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
-    console.log("Łączenie z serwerem GATT...");
-    btnConnect.innerText = "Łączenie GATT...";
+    console.log("Łączenie z GATT Server...");
     bleServer = await bleDevice.gatt.connect();
 
-    console.log("Pobieranie serwisu głównego...");
+    console.log("Szukanie usługi...");
     const service = await bleServer.getPrimaryService(SERVICE_UUID);
 
-    console.log("Pobieranie charakterystyk...");
+    console.log("Szukanie charakterystyk..");
     txCharacteristic = await service.getCharacteristic(TX_CHAR_UUID);
     rxCharacteristic = await service.getCharacteristic(RX_CHAR_UUID);
 
-    // Włączenie notyfikacji (odbieranie telemetrii na żywo)
+    // Subskrypcja na powiadomienia (TX)
     await txCharacteristic.startNotifications();
     txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
 
@@ -103,14 +105,14 @@ async function connectBLE() {
     
     console.log("Bluetooth pomyślnie podłączony!");
     
-    // Wyślij żądanie wysłania przez ESP aktualnej konfiguracji 
-    sendCmd("cmd:req_conf");
+    // Zapytaj o aktualną konfigurację po połączeniu
+    setTimeout(() => { sendCmd("cmd:get_config"); }, 500);
 
   } catch (error) {
     console.error("Błąd połączenia: ", error);
-    btnConnect.innerText = "BLE Connect";
-    btnConnect.classList.replace("btn-stop", "btn-primary");
-    alert("Błąd połączenia: " + error + "\nUpewnij się, że masz włączony Bluetooth pod protokołem HTTPS.");
+    UI.btnConnect.innerText = "BLE Connect";
+    UI.btnConnect.classList.replace("btn-stop", "btn-primary");
+    alert("Błąd połączenia: " + error + "\nUpewnij się, że masz włączony Bluetooth i korzystasz z HTTPS.");
   }
 }
 
@@ -136,76 +138,70 @@ function onDisconnected() {
 // ==========================================
 function handleNotifications(event) {
   const value = event.target.value;
+  
+  // Detekcja Magicznego Bajtu 0xBB (Protokół Binarny)
+  if (value.byteLength > 0 && value.getUint8(0) === 0xBB) {
+    parseBinaryTelemetry(value);
+    return;
+  }
+
+  // Fallback dla JSON (np. konfiguracja)
   const chunk = textDecoder.decode(value);
   receiveBuffer += chunk;
-
-  // ESP32 każdą ramkę JSON kończy znakiem \n
   let lines = receiveBuffer.split("\n");
-  
-  // Zachowaj powrotem w buforze ewentualną niefinalną końcówkę (jeśli MTU ucięło)
   receiveBuffer = lines.pop(); 
-
   for (let line of lines) {
     parseTelemetryJSON(line);
   }
 }
 
-function parseTelemetryJSON(jsonStr) {
+function parseBinaryTelemetry(view) {
   try {
-    const data = JSON.parse(jsonStr);
-    
-    // Gdy zawnioskowaliśmy o konfigurację
-    if (data.type === "config") {
-      UI.rpmLimit.value = data.rpm;
-      updateVal('rpmVal', data.rpm);
-      UI.brightness.value = data.bright;
-      updateVal('brtVal', data.bright);
-      UI.ecoMode.checked = data.eco;
-      UI.buzzerMode.checked = data.buzzer;
-      return;
-    }
+    const data = {
+      mode:         view.getUint8(1),
+      speed:        view.getUint8(2),
+      temp:         view.getInt16(3, true),
+      load:         view.getUint8(5),
+      volt:         view.getFloat32(6, true),
+      rpm:          view.getUint16(10, true),
+      timerResult:  view.getUint32(12, true),
+      current_time: view.getUint32(16, true),
+      iat:          view.getInt8(20),
+      tps:          view.getUint8(21),
+      map:          view.getUint16(22, true),
+      fuel:         view.getUint8(24),
+      gforce:       view.getFloat32(25, true),
+      log:          view.getUint8(29) === 1
+    };
+    applyTelemetryToUI(data);
+  } catch(e) { console.error("BIN Parse Error:", e); }
+}
 
-    // Aktualizacja Speed & Temp (tylko przy zmianie)
-    if (lastData.speed !== data.speed) {
-        UI.speed.innerText = data.speed;
-    }
-    if (lastData.temp !== data.temp) {
-        UI.temp.innerText = data.temp === 999 ? "--" : data.temp;
-    }
+function applyTelemetryToUI(data) {
+    if (lastData.speed !== data.speed) UI.speed.innerText = data.speed;
+    if (lastData.temp !== data.temp)   UI.temp.innerText = data.temp === 999 ? "--" : data.temp;
 
-    t_rpm = data.rpm !== undefined ? data.rpm : 0;
-    t_load = data.load !== undefined ? data.load : Math.min(100, (t_rpm / 6000) * 100 + Math.random()*8);
-    t_volt = data.volt !== undefined ? data.volt : (13.8 + (Math.random()*0.3 - 0.15));
+    t_rpm = data.rpm || 0;
+    t_load = data.load;
+    t_volt = data.volt;
 
-    // Value Guarding dla mini-wskaźników
     if (lastData.load !== Math.round(t_load)) UI.valLoad.innerText = Math.round(t_load) + "%";
     if (lastData.volt !== t_volt.toFixed(1))  UI.valVolt.innerText = t_volt.toFixed(1) + "V";
 
-    if (data.tps !== undefined) {
-      t_tps = data.tps; 
-      if (lastData.tps !== Math.round(t_tps)) UI.valTps.innerText = Math.round(t_tps) + "%";
-      if (lastData.iat !== data.iat) UI.valIat.innerText = data.iat !== 999 ? data.iat : "--";
-      if (lastData.map !== data.map) UI.valMap.innerText = data.map;
-      
-      t_fuel = data.fuel; 
-      if (lastData.fuel !== Math.round(t_fuel)) UI.valFuel.innerText = Math.round(t_fuel) + "%";
-    }
+    t_tps = data.tps; 
+    if (lastData.tps !== Math.round(t_tps)) UI.valTps.innerText = Math.round(t_tps) + "%";
+    if (lastData.iat !== data.iat) UI.valIat.innerText = data.iat !== 999 ? data.iat : "--";
+    if (lastData.map !== data.map) UI.valMap.innerText = data.map;
+    t_fuel = data.fuel; 
+    if (lastData.fuel !== Math.round(t_fuel)) UI.valFuel.innerText = Math.round(t_fuel) + "%";
 
-    // Logowanie flash
     if (lastData.log !== data.log) {
-      if (data.log === true || data.log === "true") {
-        UI.logInd.classList.add('active');
-        UI.btnLog.classList.add('active');
-      } else {
-        UI.logInd.classList.remove('active');
-        UI.btnLog.classList.remove('active');
-      }
+      if (data.log) { UI.logInd.classList.add('active'); UI.btnLog.classList.add('active'); }
+      else { UI.logInd.classList.remove('active'); UI.btnLog.classList.remove('active'); }
     }
 
-    // Oblicz przeciążenia
-    calculateG(data.speed);
+    calculateG(data.speed, data.gforce);
 
-    // Pasek stanu ogólnego
     let ecoEnabled = UI.ecoMode.checked;
     let stCls = "sys-state", stTxt = "";
     if (data.temp === 999) {
@@ -220,44 +216,33 @@ function parseTelemetryJSON(jsonStr) {
       stCls += " state-normal"; stTxt = "✓ System Online — Normal";
     }
     
-    if (lastData.stTxt !== stTxt) {
-      UI.sysState.className = stCls;
-      UI.sysState.innerText = stTxt;
-    }
+    if (lastData.stTxt !== stTxt) { UI.sysState.className = stCls; UI.sysState.innerText = stTxt; }
 
-    // Timer Drag
     if (lastData.mode !== data.mode || lastData.cTime !== data.current_time) {
-        if (data.mode <= 1) {
-          UI.timerStatus.innerText = "STANDBY";
-          UI.timerStatus.style.color = "var(--blue)";
-        }
-        else if (data.mode === 2) {
-          UI.timerStatus.innerText = "COUNTDOWN...";
-          UI.timerStatus.style.color = "var(--blue)";
-        }
-        else if (data.mode === 3) {
-          UI.timerStatus.innerText = ">>> LAUNCH READY <<<";
-          UI.timerStatus.style.color = "var(--blue)";
-          UI.timerDisp.innerText = "0.00s";
-        }
-        else if (data.mode === 4) {
-          UI.timerStatus.innerText = "TRACKING...";
-          UI.timerStatus.style.color = "var(--blue)";
-          UI.timerDisp.innerText = (data.current_time / 1000.0).toFixed(2) + "s";
-        }
-        else if (data.mode === 5) {
-          UI.timerStatus.innerText = "FINISHED";
-          UI.timerStatus.style.color = "var(--green)";
-          UI.timerDisp.innerText = (data.time / 1000.0).toFixed(2) + "s";
-        }
+        if (data.mode <= 1) { UI.timerStatus.innerText = "STANDBY"; UI.timerStatus.style.color = "#1e90ff"; }
+        else if (data.mode === 2) { UI.timerStatus.innerText = "COUNTDOWN..."; UI.timerStatus.style.color = "#1e90ff"; }
+        else if (data.mode === 3) { UI.timerStatus.innerText = ">>> LAUNCH READY <<<"; UI.timerStatus.style.color = "#1e90ff"; UI.timerDisp.innerText = "0.00s"; }
+        else if (data.mode === 4) { UI.timerStatus.innerText = "TRACKING..."; UI.timerStatus.style.color = "#1e90ff"; UI.timerDisp.innerText = (data.current_time / 1000.0).toFixed(2) + "s"; }
+        else if (data.mode === 5) { UI.timerStatus.innerText = "FINISHED"; UI.timerStatus.style.color = "#2ed573"; UI.timerDisp.innerText = (data.timerResult / 1000.0).toFixed(2) + "s"; }
     }
-
-    // Zapamiętaj dane dla kolejnego cyklu
     lastData = {...data, stTxt, load: Math.round(t_load), volt: t_volt.toFixed(1), cTime: data.current_time};
+}
 
-  } catch (e) {
-    console.error("Błąd parsowania układu JSON:", e);
-  }
+function parseTelemetryJSON(jsonStr) {
+  try {
+    const data = JSON.parse(jsonStr);
+    if (data.type === "config") {
+      UI.rpmLimit.value = data.rpm;
+      updateVal('rpmVal', data.rpm);
+      UI.brightness.value = data.bright;
+      updateVal('brtVal', data.bright);
+      UI.ecoMode.checked = data.eco;
+      UI.buzzerMode.checked = data.buzzer;
+      drawGaugeStatic();
+      return;
+    }
+    applyTelemetryToUI(data);
+  } catch (e) { console.error("JSON Parse Error:", e); }
 }
 
 // ==========================================
@@ -274,26 +259,21 @@ async function sendCmd(cmdStr) {
   }
 }
 
-// Interakcje UI (Dawne fetch('/start0100') zamienione na sendCmd)
 function saveSettings() {
   let r = UI.rpmLimit.value;
   let b = UI.brightness.value;
   let eco = UI.ecoMode.checked ? 1 : 0;
   let buz = UI.buzzerMode.checked ? 1 : 0;
   maxRpm = parseInt(r) + 500;
+  drawGaugeStatic();
   
   let btn = document.getElementById('btnSave');
   btn.innerText = "TX DATA...";
   
   sendCmd(`cmd:save:${r}:${b}:${eco}:${buz}`).then(success => {
     let stat = document.getElementById('status');
-    if (success) {
-      stat.innerText = "✓ ZAPISANO Z URZĄDZENIEM";
-      stat.style.color = "var(--green)";
-    } else {
-      stat.innerText = "✕ BŁĄD KOMUNIKACJI";
-      stat.style.color = "var(--red)";
-    }
+    if (success) { stat.innerText = "✓ ZAPISANO"; stat.style.color = "var(--green)"; }
+    else { stat.innerText = "✕ BŁĄD"; stat.style.color = "var(--red)"; }
     btn.innerText = "APPLY CONFIGURATION";
     setTimeout(() => stat.innerText = "", 3000);
   });
@@ -301,12 +281,11 @@ function saveSettings() {
 
 function startLogging() { sendCmd("cmd:log_start"); }
 function stopLogging() { sendCmd("cmd:log_stop"); }
-// Pobieranie dalej wymagało połączenia sieciowego lub mas-storage. Można to wyłączyć lub skierować do info.
 
 function cancelTimer() {
   sendCmd("cmd:cancel0100");
-  document.getElementById('timerStatus').innerText = "ABORTING...";
-  document.getElementById('timerStatus').style.color = "var(--red)";
+  UI.timerStatus.innerText = "ABORTING...";
+  UI.timerStatus.style.color = "var(--red)";
   document.getElementById('countdownOverlay').style.display = 'none';
 }
 
@@ -317,228 +296,161 @@ function startTimer() {
 
 function updateVal(id, val) {
   document.getElementById(id).innerText = val;
-  if (id === 'rpmVal') maxRpm = parseInt(val) + 500;
+  if (id === 'rpmVal') { maxRpm = parseInt(val) + 500; drawGaugeStatic(); }
 }
 
 // ==========================================
-// 4. GRAFIKI I CANVAS Y (RENDER LOOP)
+// 4. GRAFIKI I CANVAS (RENDER ENGINE)
 // ==========================================
 
-/* COUNTDOWN OVERLAY */
 function showCountdownOverlay() {
   let overlay = document.getElementById('countdownOverlay');
   let num = document.getElementById('countdownNum');
   overlay.style.display = 'flex';
   overlay.style.opacity = '1';
   num.style.color = "var(--red)";
-  num.style.textShadow = "0 0 80px rgba(255,71,87,0.6), 0 0 160px rgba(255,71,87,0.2)";
   num.innerText = "5";
-  setTimeout(() => num.innerText = "4", 1000);
-  setTimeout(() => num.innerText = "3", 2000);
-  setTimeout(() => num.innerText = "2", 3000);
-  setTimeout(() => num.innerText = "1", 4000);
+  [4,3,2,1].forEach((v, i) => setTimeout(() => num.innerText = v, (i+1)*1000));
   setTimeout(() => {
     num.innerText = "GO!";
     num.style.color = "var(--green)";
-    num.style.textShadow = "0 0 80px rgba(46,213,115,0.6), 0 0 160px rgba(46,213,115,0.2)";
-    setTimeout(() => {
-      overlay.style.opacity = '0';
-      setTimeout(() => overlay.style.display = 'none', 300);
-    }, 800);
+    setTimeout(() => { overlay.style.opacity = '0'; setTimeout(() => overlay.style.display = 'none', 300); }, 800);
   }, 5000);
 }
 
-/* WYZNACZANIE PRZECIĄŻEŃ */
-function calculateG(speedKmh) {
+function calculateG(speedKmh, currentG = null) {
+  if (currentG !== null) {
+    filteredG = currentG;
+    gHistory.shift(); gHistory.push(filteredG);
+    return;
+  }
   let now = Date.now();
   let dt = (now - lastTimeForG) / 1000.0;
-  if (dt >= 0.1) {
+  if (dt >= 0.05) {
     let dv = (speedKmh - lastSpeedForG) / 3.6;
     let rawG = (dv / dt) / 9.81;
     filteredG = (rawG * 0.15) + (filteredG * 0.85);
-    gHistory.push(filteredG);
-    gHistory.shift();
-    lastSpeedForG = speedKmh;
-    lastTimeForG = now;
+    gHistory.shift(); gHistory.push(filteredG);
+    lastSpeedForG = speedKmh; lastTimeForG = now;
   }
 }
 
-/* MALOWANIE TELEMETRII */
 function drawMountain(ctx, isAccel, colorStr, fillStr, w, baseLine, maxG, step, hist) {
   ctx.beginPath();
   for (let i = 0; i < hist.length; i++) {
     let g = hist[i];
     let val = isAccel ? (g > 0 ? g : 0) : (g < 0 ? Math.abs(g) : 0);
     let y = baseLine - (Math.min(val, maxG) / maxG) * (baseLine - 25);
-    if (i === 0) ctx.moveTo(i * step, y);
-    else ctx.lineTo(i * step, y);
+    if (i === 0) ctx.moveTo(i * step, y); else ctx.lineTo(i * step, y);
   }
   ctx.lineTo(w, baseLine); ctx.lineTo(0, baseLine);
   ctx.fillStyle = fillStr; ctx.fill();
-  ctx.beginPath();
-  let isDrawing = false;
-  for (let i = 0; i < hist.length; i++) {
-    let g = hist[i];
-    let val = isAccel ? g : -g;
-    if (val > 0.01) {
-      let y = baseLine - (Math.min(val, maxG) / maxG) * (baseLine - 25);
-      if (!isDrawing) { ctx.moveTo(Math.max(0, i - 1) * step, baseLine); isDrawing = true; }
-      ctx.lineTo(i * step, y);
-    } else {
-      if (isDrawing) { ctx.lineTo(i * step, baseLine); isDrawing = false; }
-    }
-  }
   ctx.lineWidth = 2; ctx.strokeStyle = colorStr; ctx.stroke();
 }
 
-/* SILNIK GRAFICZNY PROCESUJĄCY KĄTY ZEGARÓW */
+function drawGaugeStatic() {
+  const cnv = UI.gaugeStatic; if (!cnv) return;
+  const ctx = cnv.getContext("2d"), w = cnv.width, h = cnv.height;
+  const cx = w/2, cy = h-20, r = 160;
+  ctx.clearRect(0, 0, w, h);
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0);
+  ctx.lineWidth = 18; ctx.strokeStyle = '#111820'; ctx.stroke();
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.fillStyle = '#484f58'; ctx.font = 'bold 11px "Segoe UI"'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 10; i++) {
+    let angle = -Math.PI + (i/10)*Math.PI;
+    ctx.fillText(i, Math.cos(angle)*(r-28), Math.sin(angle)*(r-28)+4);
+  }
+  ctx.restore();
+}
+
 function renderCanvas() {
-  c_rpm += (t_rpm - c_rpm) * 0.15;
+  // Interpolacja dla płynności ruchu wskazówek i barów
+  c_rpm += (t_rpm - c_rpm) * 0.3;
   c_load += (t_load - c_load) * 0.15;
-  c_volt += (t_volt - c_volt) * 0.15;
-  c_tps += (t_tps - c_tps) * 0.15;
-  c_fuel += (t_fuel - c_fuel) * 0.15;
+  c_volt += (t_volt - c_volt) * 0.1;
+  c_tps += (t_tps - c_tps) * 0.2;
+  c_fuel += (t_fuel - c_fuel) * 0.1;
 
-  let cRpm = document.getElementById("gaugeCanvas");
-  if (cRpm) {
-    let ctx = cRpm.getContext("2d");
-    let w = cRpm.width, h = cRpm.height;
-    ctx.clearRect(0, 0, w, h);
-    let cx = w / 2, cy = h - 20, r = h - 40;
-    
-    // Obwód tła
-    ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0);
-    ctx.lineWidth = 18; ctx.strokeStyle = '#111820'; ctx.stroke();
-    
-    let fill = Math.min(c_rpm / maxRpm, 1.0);
-    if (fill > 0) {
-      let isEco = UI.ecoMode.checked;
-      let tempText = UI.temp.innerText;
-      let isCold = tempText !== "--" && parseInt(tempText) < 75;
-      let baseLimit = parseInt(UI.rpmLimit.value);
-      let activeLimit = baseLimit;
-      
-      if (isEco) activeLimit = baseLimit * 0.4;
-      else if (isCold) activeLimit = baseLimit * 0.5;
-      
-      let strokeCol, shadowCol;
-      // Stroboskop
-      if (c_rpm >= activeLimit) {
-        let blink = (Math.floor(Date.now() / 80) % 2 === 0);
-        strokeCol = blink ? '#ff4757' : '#1a0000';
-        shadowCol = blink ? '#ff4757' : 'transparent';
-      } else if (isEco) {
-        if (c_rpm < 1500) strokeCol = '#2ed573';
-        else if (c_rpm < 2000) strokeCol = '#ffa502';
-        else strokeCol = '#ff4757';
-        shadowCol = strokeCol;
-      } else if (isCold) {
-        strokeCol = '#1e90ff'; shadowCol = strokeCol;
-      } else {
-        // Normalny gradient
-        let grad = ctx.createLinearGradient(0, cy, w, cy);
-        grad.addColorStop(0.0, '#1e90ff');
-        grad.addColorStop(0.35, '#2ed573');
-        grad.addColorStop(0.65, '#ffa502');
-        grad.addColorStop(0.85, '#ff6348');
-        grad.addColorStop(1.0, '#ff4757');
-        strokeCol = grad;
-        
-        if (fill < 0.35) shadowCol = '#1e90ff';
-        else if (fill < 0.65) shadowCol = '#2ed573';
-        else if (fill < 0.85) shadowCol = '#ffa502';
-        else shadowCol = '#ff4757';
-      }
-      
-      ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + (fill * Math.PI));
-      ctx.lineWidth = 18; ctx.strokeStyle = strokeCol;
-      ctx.shadowBlur = 15; ctx.shadowColor = shadowCol;
-      ctx.stroke(); ctx.shadowBlur = 0;
-    }
-    
-    // Obroty na środku
-    ctx.fillStyle = '#e6edf3'; ctx.font = 'bold 52px "Segoe UI"'; ctx.textAlign = 'center';
-    ctx.fillText(Math.round(c_rpm), cx, cy - 10);
-    ctx.fillStyle = '#484f58'; ctx.font = 'bold 14px "Segoe UI"';
-    ctx.fillText("RPM", cx, cy + 12);
-  }
-
-  // Mini paski
-  function drawMini(canvasId, valFill, colorBase) {
-    let cnv = document.getElementById(canvasId);
-    if (!cnv) return;
-    let ctx = cnv.getContext("2d"), w = cnv.width, h = cnv.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#111820'; ctx.fillRect(0, 0, w, h);
-    let fill = Math.max(0, Math.min(valFill, 1.0));
-    ctx.fillStyle = colorBase; ctx.shadowBlur = 6; ctx.shadowColor = colorBase;
-    ctx.fillRect(0, 0, w * fill, h); ctx.shadowBlur = 0;
-  }
-
-  drawMini("loadCanvas", c_load / 100, '#ff6348');
-  drawMini("voltCanvas", (c_volt - 10) / 5, '#2ed573');
-  drawMini("tpsCanvas", c_tps / 100, '#ffa502');
-  drawMini("fuelCanvas", c_fuel / 100, '#1e90ff');
-
-  // G-Force Telemetryczny Render
-  let cTel = document.getElementById("telemetryCanvas");
-  if (cTel) {
-    let ctx = cTel.getContext("2d");
-    let w = cTel.width, h = cTel.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#0a0d12"; ctx.fillRect(0, 0, w, h);
-    
-    let baseLine = h - 5;
-    let maxG = 1.5;
-    let step = w / (gHistory.length - 1);
-    
-    ctx.strokeStyle = "#1e2530"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, baseLine); ctx.lineTo(w, baseLine); ctx.stroke();
-    
-    drawMountain(ctx, true, "#2ed573", "rgba(46,213,115,0.2)", w, baseLine, maxG, step, gHistory);
-    drawMountain(ctx, false, "#ff4757", "rgba(255,71,87,0.2)", w, baseLine, maxG, step, gHistory);
-    
-    let currentG = gHistory[gHistory.length - 1];
-    ctx.fillStyle = currentG > 0.05 ? "#2ed573" : (currentG < -0.05 ? "#ff4757" : "#484f58");
-    ctx.font = 'bold 13px "Segoe UI"'; ctx.textAlign = 'right';
-    let title = currentG > 0.05 ? "ACCEL " : (currentG < -0.05 ? "BRAKE " : "IDLE ");
-    ctx.fillText(title + Math.abs(currentG).toFixed(2) + "G", w - 10, 20);
-  }
+  // 1. Warstwa Dynamiczna Zegara
+  drawGaugeDynamic();
   
+  // 2. Mini Wskaźniki Panelu
+  drawMiniBar(UI.gaugeLoad, c_load / 100, '#ff6348');
+  drawMiniBar(UI.gaugeVolt, (c_volt - 10) / 5, '#2ed573');
+  drawMiniBar(UI.gaugeTps, c_tps / 100, '#ffa502');
+  drawMiniBar(UI.gaugeFuel, c_fuel / 100, '#1e90ff');
+  
+  // 3. Wykres Przeciążeń
+  drawTelemetryGraph();
+
   requestAnimationFrame(renderCanvas);
 }
 
-// Inicjalizacja zegarów i Cache'u DOM
+function drawGaugeDynamic() {
+  const cnv = UI.gaugeDynamic; if (!cnv) return;
+  const ctx = cnv.getContext("2d"), w = cnv.width, h = cnv.height, cx = w/2, cy = h-20, r = 160;
+  ctx.clearRect(0, 0, w, h);
+  let fill = Math.min(c_rpm / maxRpm, 1.0);
+  if (fill > 0) {
+    let limit = parseInt(UI.rpmLimit.value);
+    let strokeCol = '#2ed573';
+    if (c_rpm >= limit) strokeCol = (Math.floor(Date.now()/80)%2===0) ? '#ff4757' : '#1a0000';
+    else {
+      let grad = ctx.createLinearGradient(0, cy, w, cy);
+      grad.addColorStop(0,'#1e90ff'); grad.addColorStop(0.3,'#2ed573'); grad.addColorStop(0.7,'#ffa502'); grad.addColorStop(1,'#ff4757');
+      strokeCol = grad;
+    }
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + fill*Math.PI);
+    ctx.lineWidth = 18; ctx.lineCap = 'round'; ctx.strokeStyle = strokeCol;
+    if (c_rpm >= limit*0.8) { ctx.shadowBlur = 15; ctx.shadowColor = '#ff4757'; }
+    ctx.stroke(); ctx.restore();
+  }
+  ctx.fillStyle = '#e6edf3'; ctx.font = 'bold 52px "Segoe UI"'; ctx.textAlign = 'center';
+  ctx.fillText(Math.round(c_rpm), cx, cy-10);
+  ctx.fillStyle = '#484f58'; ctx.font = 'bold 14px "Segoe UI"'; ctx.fillText("RPM", cx, cy+12);
+}
+
+function drawMiniBar(cnv, val, col) {
+  if (!cnv) return;
+  let ctx = cnv.getContext("2d"), w = cnv.width, h = cnv.height;
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#111820'; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle = col; ctx.shadowBlur = 6; ctx.shadowColor = col;
+  ctx.fillRect(0,0,w*Math.max(0,Math.min(val,1)),h);
+}
+
+function drawTelemetryGraph() {
+  let cTel = document.getElementById("telemetryCanvas"); if (!cTel) return;
+  let ctx = cTel.getContext("2d"), w = cTel.width, h = cTel.height;
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = "#0a0d12"; ctx.fillRect(0,0,w,h);
+  let baseLine = h-5, maxG = 1.5, step = w/(gHistory.length-1);
+  ctx.strokeStyle = "#1e2530"; ctx.beginPath(); ctx.moveTo(0,baseLine); ctx.lineTo(w,baseLine); ctx.stroke();
+  drawMountain(ctx, true, "#2ed573", "rgba(46,213,115,0.2)", w, baseLine, maxG, step, gHistory);
+  drawMountain(ctx, false, "#ff4757", "rgba(255,71,87,0.2)", w, baseLine, maxG, step, gHistory);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  // Wypełnienie mapy obiektów DOM (Cache)
   UI.btnConnect = document.getElementById("btnConnect");
   UI.dotStatus = document.getElementById("connStatusDot");
   UI.sysState = document.getElementById("sysState");
   UI.speed = document.getElementById("speedDisplay");
   UI.temp = document.getElementById("tempDisplay");
-  UI.valLoad = document.getElementById("valLoad");
-  UI.valVolt = document.getElementById("valVolt");
-  UI.valTps = document.getElementById("valTps");
-  UI.valIat = document.getElementById("valIat");
-  UI.valMap = document.getElementById("valMap");
-  UI.valFuel = document.getElementById("valFuel");
-  UI.logInd = document.getElementById("logIndicator");
-  UI.btnLog = document.getElementById("btnLogStart");
-  UI.timerStatus = document.getElementById("timerStatus");
-  UI.timerDisp = document.getElementById("timeDisplay");
-  UI.rpmLimit = document.getElementById("rpmLimit");
-  UI.brightness = document.getElementById("brightness");
-  UI.ecoMode = document.getElementById("ecoMode");
-  UI.buzzerMode = document.getElementById("buzzerMode");
+  UI.valLoad = document.getElementById("valLoad"); UI.valVolt = document.getElementById("valVolt");
+  UI.valTps = document.getElementById("valTps"); UI.valIat = document.getElementById("valIat");
+  UI.valMap = document.getElementById("valMap"); UI.valFuel = document.getElementById("valFuel");
+  UI.logInd = document.getElementById("logIndicator"); UI.btnLog = document.getElementById("btnLogStart");
+  UI.timerStatus = document.getElementById("timerStatus"); UI.timerDisp = document.getElementById("timeDisplay");
+  UI.rpmLimit = document.getElementById("rpmLimit"); UI.brightness = document.getElementById("brightness");
+  UI.ecoMode = document.getElementById("ecoMode"); UI.buzzerMode = document.getElementById("buzzerMode");
+  UI.gaugeStatic = document.getElementById("gaugeStaticCanvas");
+  UI.gaugeDynamic = document.getElementById("gaugeCanvas");
+  UI.gaugeLoad = document.getElementById('loadCanvas'); UI.gaugeVolt = document.getElementById('voltCanvas');
+  UI.gaugeTps = document.getElementById('tpsCanvas'); UI.gaugeFuel = document.getElementById('fuelCanvas');
 
-  // Inicjalizacja zdarzeń guzików
   initBLEEvents();
-
+  drawGaugeStatic(); 
   maxRpm = parseInt(UI.rpmLimit.value) + 500;
   requestAnimationFrame(renderCanvas);
-  
   let btnExp = document.querySelector('.btn-export');
-  if(btnExp) {
-    btnExp.onclick = () => alert("Pobieranie logów CSV odbywa się wyłącznie bezpośrednio z pamięci plikowej ESP podłączając płytkę po kablu USB. Bluetooth używasz do odpalania rec!");
-  }
+  if(btnExp) btnExp.onclick = () => alert("Pobieranie logów CSV odbywa się wyłącznie po kablu USB.");
 });

@@ -117,7 +117,16 @@ body {
 .cockpit-corner-unit { font-size: 11px; color: var(--text-3); font-weight: 500; }
 .corner-temp .cockpit-corner-value { color: var(--blue); }
 .corner-speed .cockpit-corner-value { color: var(--text-1); }
-#gaugeCanvas { width: 100%; max-width: 340px; height: auto !important; margin: 8px auto 0; display: block; }
+.gauge-container { 
+  position: relative; width: 100%; max-width: 320px; height: 180px; 
+  margin: 15px auto 5px; overflow: hidden;
+}
+#gaugeStaticCanvas, #gaugeCanvas { 
+  position: absolute; top: 0; left: 0; 
+  width: 100%; height: auto !important; 
+}
+#gaugeStaticCanvas { z-index: 1; }
+#gaugeCanvas { z-index: 2; pointer-events: none; }
 
 /* === MINI GAUGES GRID === */
 .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
