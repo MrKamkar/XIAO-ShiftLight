@@ -8,7 +8,7 @@ QueueHandle_t logQueue = NULL;
 void initDataLogger() {
   LittleFS.begin(true);
   
-  // Cleanup v1.6: Usuń stary plik CSV, jeśli istnieje (zastąpiony przez .bin)
+  // Usuwa stary plik CSV, jeśli istnieje (zastąpiony przez .bin)
   if (LittleFS.exists("/telemetry.csv")) {
     LittleFS.remove("/telemetry.csv");
   }
