@@ -38,7 +38,7 @@ void taskLogging(void *pvParameters) {
         if (!lastIsLogging) {
           if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
             if (file) file.close();
-            file = LittleFS.open("/telemetry.bin", "w"); 
+            file = LittleFS.open("/telemetry.bin", "a"); 
             xSemaphoreGive(fsMutex);
           }
           lastIsLogging = true;

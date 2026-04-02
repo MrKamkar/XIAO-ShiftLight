@@ -82,17 +82,15 @@ class MyRxCallbacks: public BLECharacteristicCallbacks {
       }
       else if (cmd == "cmd:log_start") {
         if (!isLogging) {
-          // Natychmiastowa inicjalizacja bazy zajętości przed sesją
           if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
-            size_t total = LittleFS.usedBytes();
+            size_t fSize = 0;
             if (LittleFS.exists("/telemetry.bin")) {
-              File f = LittleFS.open("/telemetry.bin", "r");
-              size_t fSize = f.size();
+              File f = LittleFS.open("/telemetry.bin", "a");
+              fSize = f.size();
               f.close();
-              if (total >= fSize) total -= fSize; // Odejmujemy stary plik, bo "w" go nadpisze
             }
-            baseUsedBytes = total;
-            currentFileSize = 0;
+            baseUsedBytes = LittleFS.usedBytes() - fSize;
+            currentFileSize = fSize;
             xSemaphoreGive(fsMutex);
           }
         }
