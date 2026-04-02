@@ -613,9 +613,9 @@ document.addEventListener("DOMContentLoaded", () => {
   UI.ecoMode.addEventListener('change', (e) => { cachedEcoMode = e.target.checked; });
 
   cachedRpmLimit = parseInt(UI.rpmLimit.value) || 6000;
+  maxRpm = cachedRpmLimit;
   setupGradients();
   drawGaugeStatic();
-  maxRpm = cachedRpmLimit;
   requestAnimationFrame(renderCanvas);
   let btnExp = document.querySelector('.btn-export');
   if (btnExp) btnExp.onclick = () => alert("Pobieranie logów CSV odbywa się poprzez połączenie Bluetooth.");
