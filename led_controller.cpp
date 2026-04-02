@@ -228,7 +228,7 @@ void updateLEDs() {
   uint32_t now = millis();
   // Jeśli są starsze niż 1000ms, pokazujemy animację błędu (pulsowanie na czerwono)
   bool isDataStale = (now - lastRPMTime > 500);
-  bool isError = (now - lastRPMTime > 1000);
+  bool isError = (now - lastRPMTime > 1000 && currentRPM > 0);
 
   // Czyścimy bufor docelowy przed nowymi obliczeniami
   for(int i = 0; i < NUM_LEDS; i++) targetLeds[i] = CRGB::Black;

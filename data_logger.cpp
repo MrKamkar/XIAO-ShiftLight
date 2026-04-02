@@ -49,40 +49,30 @@ void taskLogging(void *pvParameters) {
           }
         }
 
+        // Usuwamy teoretyczne sprawdzanie wolnego miejsca (v3.1) - nagrywamy dopóki write() zwraca sukces
+
         if (file) {
-          // Sprawdzenie wolnego miejsca (co 100 rekordów, by nie przeciążać LittleFS)
-          if (checkCounter++ >= 100) {
-            checkCounter = 0;
-            size_t total = 0, used = 0;
-            if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
-               total = LittleFS.totalBytes();
-               used = LittleFS.usedBytes();
-               xSemaphoreGive(fsMutex);
-            }
-            if (total - used < 10240) isSpaceFull = true; 
-          }
-
-          if (isSpaceFull) { 
-            isLogging = false; 
-            if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
-               file.close(); 
-               xSemaphoreGive(fsMutex);
-            }
-            isSpaceFull = false; 
-            continue; 
-          }
-
           // Zapis binarny (raw struct dump)
+          size_t bytesWritten = 0;
           if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
-            file.write((const uint8_t*)&data, sizeof(TelemetryData));
-            currentFileSize = file.size(); // Aktualizacja liczniku "live"
+            bytesWritten = file.write((const uint8_t*)&data, sizeof(TelemetryData));
+            currentFileSize = file.size(); 
             
-            // Flush co 5s (optymalizacja żywotności Flash, przy zachowaniu bezpieczeństwa danych)
             if (millis() - lastFlush > 5000) {
               file.flush();
               lastFlush = millis();
             }
             xSemaphoreGive(fsMutex);
+          }
+
+          // Jeśli fizycznie zabrakło miejsca (write() nie zapisał całego rekordu)
+          if (bytesWritten < sizeof(TelemetryData)) {
+            isLogging = false; 
+            if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+               file.close(); 
+               xSemaphoreGive(fsMutex);
+            }
+            continue; 
           }
         }
       } else {
