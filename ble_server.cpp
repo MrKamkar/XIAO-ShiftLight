@@ -187,17 +187,23 @@ void sendBLETelemetry() {
 
   if (isDownloadingFile) {
     if (isDownloadingFile && fileToDownload) {
-      uint8_t chunk[240];
-      size_t toRead = std::min((size_t)240, (size_t)(fileDownloadSize - fileDownloadOffset));
+      const size_t recordSize = 44; // Rozmiar struktury TelemetryData (packed)
+      const size_t recordsPerPacket = 5; 
+      const size_t maxData = recordsPerPacket * recordSize;
+      
+      uint8_t buffer[225]; // 1 (prefiks) + 220 (dane)
+      buffer[0] = 0xCC;    // Prefiks pliku dla Dashboardu
+      
+      size_t toRead = std::min(maxData, (size_t)(fileDownloadSize - fileDownloadOffset));
       
       size_t actuallyRead = 0;
       if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
-         actuallyRead = fileToDownload.read(chunk, toRead);
+         actuallyRead = fileToDownload.read(buffer + 1, toRead);
          xSemaphoreGive(fsMutex);
       }
       
       if (actuallyRead > 0) {
-        pTxCharacteristic->setValue(chunk, actuallyRead);
+        pTxCharacteristic->setValue(buffer, actuallyRead + 1);
         pTxCharacteristic->notify();
         fileDownloadOffset += actuallyRead;
         
