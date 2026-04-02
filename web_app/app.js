@@ -111,7 +111,8 @@ async function connectBLE() {
     await txCharacteristic.startNotifications();
     txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
 
-    UI.btnConnectText.textContent = "Disconnect";
+    const isMobile = window.innerWidth < 400;
+    UI.btnConnectText.textContent = isMobile ? "OFF" : "Disconnect";
     UI.btnConnect.classList.replace("btn-primary", "btn-stop");
     UI.dotStatus.className = "pulse dot-margin";
     UI.sysState.className = "sys-state state-normal";

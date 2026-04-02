@@ -369,7 +369,7 @@ input:checked + .slider::before { transform: translateX(20px); background: #fff;
   .nav-link { padding: 6px 10px; margin-right: 4px; }
   .nav-text { display: none; }
   
-  .btn-connect { padding: 6px 10px; min-width: 80px; }
+  .btn-connect { padding: 5px 8px; font-size: 10px; min-width: auto; }
   
   .dot-margin { margin-left: 2px; }
 }
