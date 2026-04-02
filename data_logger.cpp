@@ -89,7 +89,6 @@ void taskLogging(void *pvParameters) {
         if (file) {
           if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
             file.close();
-            currentFileSize = 0;
             xSemaphoreGive(fsMutex);
           }
         }

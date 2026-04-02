@@ -246,7 +246,7 @@ void sendBLETelemetry() {
     size_t total = 0, used = 0;
     if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
       total = LittleFS.totalBytes();
-      if (isLogging) {
+      if (isLogging || stopTimer > 0) {
         used = baseUsedBytes + currentFileSize; 
       } else {
         used = LittleFS.usedBytes();
