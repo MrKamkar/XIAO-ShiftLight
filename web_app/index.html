@@ -124,15 +124,19 @@
         </div>
         <div class="flash-usage" id="flashUsageContainer">
           <div class="flash-usage-label">Pamięć Flash: <span id="flashPerc">0%</span></div>
-          <div class="flash-usage-bar"><div id="flashFill" class="flash-usage-fill"></div></div>
+          <div class="flash-usage-bar">
+            <div id="flashFill" class="flash-usage-fill"></div>
+          </div>
         </div>
         <div class="dl-container">
-          <button class="btn btn-primary btn-export mt-8" onclick="downloadLog()" style="width: 100%;">Pobierz Logi (CSV) - BT</button>
+          <button class="btn btn-primary btn-export mt-8" onclick="downloadLog()" style="width: 100%;">Pobierz Logi
+            (CSV) - BT</button>
           <div class="dl-progress-bar" id="dlProgressBar" style="display:none;">
             <div class="dl-progress-fill" id="dlProgressFill"></div>
             <span class="dl-progress-text" id="dlProgressText">0%</span>
           </div>
-          <button class="btn btn-danger mt-8" onclick="wipeFlash()" style="width: 100%;">Wyczyść Całą Pamięć (Format)</button>
+          <button class="btn btn-danger mt-8" onclick="wipeFlash()" style="width: 100%;">Wyczyść Całą Pamięć
+            (Format)</button>
         </div>
       </div>
 

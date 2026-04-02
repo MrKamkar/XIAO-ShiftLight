@@ -14,17 +14,9 @@ void initDataLogger() {
   }
 }
 
-// Nadpisanie pliku i rozpoczęcie zapisu binarnego
+// Rozpoczęcie sesji nagrywania (dopisanie do pliku)
 void startDataLog() {
-  if (LittleFS.exists("/telemetry.bin")) {
-    LittleFS.remove("/telemetry.bin");
-  }
-  
-  File file = LittleFS.open("/telemetry.bin", "w");
-  if(file) {
-    file.close(); // Tworzymy plik, dane dopisujemy w tasku
-    isLogging = true;
-  }
+  isLogging = true;
 }
 
 void stopDataLog() {
@@ -70,7 +62,8 @@ void taskLogging(void *pvParameters) {
           }
         }
       } else if (file) {
-        file.close(); // Zamknij plik gdy logowanie zostało wyłączone
+        file.close(); 
+        file = File(); // Reset obiektu pliku, by !file zadziałało przy nowym REC
       }
     }
   }

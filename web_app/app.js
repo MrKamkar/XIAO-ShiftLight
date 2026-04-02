@@ -169,10 +169,10 @@ function handleNotifications(event) {
 
   const chunk = textDecoder.decode(value);
   receiveBuffer += chunk;
-  
+
   if (receiveBuffer.includes("fs_formatted")) {
     alert("Flash został sformatowany pomyślnie!");
-    setTimeout(() => { sendCmd("cmd:req_conf"); }, 500); 
+    setTimeout(() => { sendCmd("cmd:req_conf"); }, 500);
     receiveBuffer = receiveBuffer.replace("fs_formatted", "");
   }
 
@@ -209,7 +209,7 @@ function applyTelemetryToUI(data) {
   if (lastData.speed !== data.speed) UI.speed.textContent = data.speed;
 
   const curTemp = data.temp !== undefined ? data.temp : (lastData.temp !== undefined ? lastData.temp : 999);
-  
+
   if (curTemp !== lastData.temp) UI.temp.textContent = (curTemp === 999) ? "--" : curTemp;
 
   t_rpm = data.rpm !== undefined ? data.rpm : 0;
@@ -295,7 +295,7 @@ function parseTelemetryJSON(jsonStr) {
     }
     if (data.type === "download_end") {
       console.log("Download finished, converting binary to CSV...");
-      
+
       // Konwersja binarna: scalanie wszystkich kawałków w jeden bufor
       const totalLen = dlBuffer.reduce((acc, curr) => acc + curr.length, 0);
       const combined = new Uint8Array(totalLen);
@@ -306,20 +306,20 @@ function parseTelemetryJSON(jsonStr) {
       const recordSize = 44;
       const csvRows = ["Time(ms),RPM,Speed(km/h),Temp(C),Load(%),Volt(V),IAT(C),TPS(%),MAP(kPa),Fuel(%),G(g)"];
       const view = new DataView(combined.buffer);
-      
+
       for (let i = 0; i <= totalLen - recordSize; i += recordSize) {
-        let t    = view.getUint32(i, true);
-        let rpm  = view.getInt32(i + 4, true);
-        let spd  = view.getInt32(i + 8, true);
-        let tmp  = view.getInt32(i + 12, true);
+        let t = view.getUint32(i, true);
+        let rpm = view.getInt32(i + 4, true);
+        let spd = view.getInt32(i + 8, true);
+        let tmp = view.getInt32(i + 12, true);
         let load = view.getInt32(i + 16, true);
         let volt = view.getFloat32(i + 20, true).toFixed(2);
-        let iat  = view.getInt32(i + 24, true);
-        let tps  = view.getInt32(i + 28, true);
-        let map  = view.getInt32(i + 32, true);
+        let iat = view.getInt32(i + 24, true);
+        let tps = view.getInt32(i + 28, true);
+        let map = view.getInt32(i + 32, true);
         let fuel = view.getInt32(i + 36, true);
-        let g    = view.getFloat32(i + 40, true).toFixed(2);
-        
+        let g = view.getFloat32(i + 40, true).toFixed(2);
+
         csvRows.push(`${t},${rpm},${spd},${tmp},${load},${volt},${iat},${tps},${map},${fuel},${g}`);
       }
 
@@ -332,7 +332,7 @@ function parseTelemetryJSON(jsonStr) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
       UI.dlProgressBar.style.display = 'none';
       toggleUIBlocking(false);
       return;
@@ -501,7 +501,7 @@ function drawGaugeStatic() {
   for (let i = 0; i <= divisions; i++) {
     let angle = -Math.PI + (i / divisions) * Math.PI;
     ctx.fillText(i, Math.cos(angle) * (r - 28), Math.sin(angle) * (r - 28) + 4);
-    ctx.beginPath(); ctx.moveTo(Math.cos(angle) * (r - 12), Math.sin(angle) * (r - 12)); 
+    ctx.beginPath(); ctx.moveTo(Math.cos(angle) * (r - 12), Math.sin(angle) * (r - 12));
     ctx.lineTo(Math.cos(angle) * (r + 12), Math.sin(angle) * (r + 12));
     ctx.lineWidth = 2; ctx.strokeStyle = '#1e2530'; ctx.stroke();
   }
