@@ -28,5 +28,8 @@ void stopDataLog();
 // Zadanie asynchronicznego zapisu danych (FreeRTOS)
 void taskLogging(void *pvParameters);
 
+// Czyści całą partycję LittleFS (Formatowanie)
+void wipeFilesystem();
+
 // Współdzielona kolejka dla logowania
 extern QueueHandle_t logQueue;

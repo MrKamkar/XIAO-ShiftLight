@@ -66,6 +66,7 @@ const UI = {
   flashPerc: null,
   btnSaveSettings: null,
   btnLogStop: null,
+  btnWipe: null,
   obdHz: null
 };
 
@@ -168,6 +169,13 @@ function handleNotifications(event) {
 
   const chunk = textDecoder.decode(value);
   receiveBuffer += chunk;
+  
+  if (receiveBuffer.includes("fs_formatted")) {
+    alert("Flash został sformatowany pomyślnie!");
+    setTimeout(() => { sendCmd("cmd:req_conf"); }, 500); 
+    receiveBuffer = receiveBuffer.replace("fs_formatted", "");
+  }
+
   let lines = receiveBuffer.split("\n");
   receiveBuffer = lines.pop();
   for (let line of lines) { parseTelemetryJSON(line); }
@@ -398,6 +406,14 @@ function saveSettings() {
 function startLogging() { sendCmd("cmd:log_start"); }
 function stopLogging() { sendCmd("cmd:log_stop"); }
 
+function wipeFlash() {
+  if (confirm("Czy na pewno chcesz TYSIĄC PROCENT sformatować pamięć Flash? Wszystkie logi zostaną usunięte bezpowrotnie! Operacja potrwa ok. 5s.")) {
+    UI.sysState.textContent = "⌛ Formating Flash... Czekaj...";
+    UI.sysState.className = "sys-state state-offline";
+    sendCmd("cmd:fs_wipe");
+  }
+}
+
 function cancelTimer() {
   sendCmd("cmd:cancel0100");
   UI.timerStatus.textContent = "ABORTING..."; UI.timerStatus.style.color = "var(--red)";
@@ -606,6 +622,7 @@ document.addEventListener("DOMContentLoaded", () => {
   UI.flashPerc = document.getElementById('flashPerc');
   UI.btnSaveSettings = document.getElementById('btnSave');
   UI.btnLogStop = document.getElementById('btnLogStop');
+  UI.btnWipe = document.querySelector('.btn-danger');
   UI.obdHz = document.getElementById("obdHz");
 
   initBLEEvents();
@@ -617,6 +634,4 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGradients();
   drawGaugeStatic();
   requestAnimationFrame(renderCanvas);
-  let btnExp = document.querySelector('.btn-export');
-  if (btnExp) btnExp.onclick = () => alert("Pobieranie logów CSV odbywa się poprzez połączenie Bluetooth.");
 });

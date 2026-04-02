@@ -74,6 +74,11 @@ class MyRxCallbacks: public BLECharacteristicCallbacks {
       else if (cmd == "cmd:cancel0100") {
         currentMode = MODE_SHIFT_LIGHT;
       } 
+      else if (cmd == "cmd:fs_wipe") {
+        wipeFilesystem();
+        pTxCharacteristic->setValue("fs_formatted");
+        pTxCharacteristic->notify();
+      }
       else if (cmd == "cmd:log_start") {
         startDataLog();
       } 

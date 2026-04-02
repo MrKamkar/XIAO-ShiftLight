@@ -70,3 +70,10 @@ void taskLogging(void *pvParameters) {
     }
   }
 }
+
+void wipeFilesystem() {
+  isLogging = false; 
+  LittleFS.format();
+  LittleFS.begin(true);
+}
+
