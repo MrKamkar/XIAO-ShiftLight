@@ -37,10 +37,12 @@ volatile uint32_t dragTimerStart = 0;
 volatile uint32_t timerResult = 0;
 
 volatile bool isLogging = false; 
+SemaphoreHandle_t fsMutex = NULL;
 
 Preferences preferences;
 
 void setup() {
+  fsMutex = xSemaphoreCreateMutex();
   //Serial.begin(115200); // Odkomentuj tylko do debugowania przez USB
 
   lastRPMTime = millis(); // Punkt zerowy dla fail-safe, aby uniknąć błędu na starcie

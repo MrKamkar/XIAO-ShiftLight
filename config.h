@@ -64,3 +64,6 @@ extern volatile uint32_t timerResult;
 extern volatile bool isLogging;
 extern volatile uint32_t lastRPMTime; // Czas ostatniej poprawnej aktualizacji RPM
 extern volatile uint8_t obdHz;        // Częstotliwość OBD (Hz)
+
+// Mutex dla bezpiecznego dostępu do systemu plików (Flash) z obu rdzeni naraz
+extern SemaphoreHandle_t fsMutex;

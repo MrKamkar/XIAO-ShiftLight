@@ -19,6 +19,7 @@ BLECharacteristic *pRxCharacteristic = NULL;
 bool isDownloadingFile = false;
 File fileToDownload;
 uint32_t fileDownloadSize = 0;
+uint32_t fileDownloadOffset = 0;
 
 // Wyzwalane przy parowaniu/rozłączeniu
 class MyServerCallbacks: public BLEServerCallbacks {
@@ -86,12 +87,15 @@ class MyRxCallbacks: public BLECharacteristicCallbacks {
         stopDataLog();
       } 
       else if (cmd == "cmd:req_conf") {
-        // Aplikacja (app.js) zażądała wgrania aktualnej konfiguracji z ESP32 tuż po połączeniu.
         char confBuf[192];
-        size_t total = LittleFS.totalBytes();
-        size_t used = LittleFS.usedBytes();
+        size_t total = 0, used = 0;
+        if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+          total = LittleFS.totalBytes();
+          used = LittleFS.usedBytes();
+          xSemaphoreGive(fsMutex);
+        }
         snprintf(confBuf, sizeof(confBuf), "{\"type\":\"config\",\"rpm\":%d,\"bright\":%d,\"eco\":%s,\"buzzer\":%s,\"f_used\":%u,\"f_total\":%u}\n",
-                 shiftLimit, brightness, ecoMode ? "true" : "false", buzzerEnabled ? "true" : "false", used, total);
+                 shiftLimit, brightness, ecoMode ? "true" : "false", buzzerEnabled ? "true" : "false", (uint32_t)used, (uint32_t)total);
         pTxCharacteristic->setValue((uint8_t*)confBuf, strlen(confBuf));
         pTxCharacteristic->notify();
       }
@@ -99,11 +103,17 @@ class MyRxCallbacks: public BLECharacteristicCallbacks {
         if (!isDownloadingFile) {
           if (isLogging) stopDataLog(); // Zatrzymanie obecnego nagrywania
           
-          fileToDownload = LittleFS.open("/telemetry.bin", "r");
-          if (fileToDownload) {
-            fileDownloadSize = fileToDownload.size();
-            isDownloadingFile = true;
-            
+          if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+            fileToDownload = LittleFS.open("/telemetry.bin", "r");
+            if (fileToDownload) {
+              fileDownloadSize = fileToDownload.size();
+              fileDownloadOffset = 0;
+              isDownloadingFile = true;
+            }
+            xSemaphoreGive(fsMutex);
+          }
+
+          if (isDownloadingFile) {
             char confBuf[64];
             snprintf(confBuf, sizeof(confBuf), "{\"type\":\"download_start\",\"size\":%u}\n", fileDownloadSize);
             pTxCharacteristic->setValue((uint8_t*)confBuf, strlen(confBuf));
@@ -157,24 +167,34 @@ void sendBLETelemetry() {
   if (!bleConnected || pTxCharacteristic == NULL) return;
 
   if (isDownloadingFile) {
-    if (fileToDownload && fileToDownload.available()) {
-      uint8_t buffer[240]; // Bezpieczny przedział dla MTU (domyślnie ~244b iOS/Android z negocjacjami)
-      buffer[0] = 0xCC;    // Prefiks pliku
+    if (isDownloadingFile && fileToDownload) {
+      uint8_t chunk[240];
+      size_t toRead = std::min((size_t)240, (size_t)(fileDownloadSize - fileDownloadOffset));
       
-      size_t bytesRead = fileToDownload.read(buffer + 1, sizeof(buffer) - 1);
-      if (bytesRead > 0) {
-        pTxCharacteristic->setValue(buffer, bytesRead + 1);
-        pTxCharacteristic->notify();
-        delay(15); // Oddech dla stosu BLE - zapobiega zapchaniu (queue overflow)
+      size_t actuallyRead = 0;
+      if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+         actuallyRead = fileToDownload.read(chunk, toRead);
+         xSemaphoreGive(fsMutex);
       }
-    } else {
-      // Koniec wysyłania
-      if (fileToDownload) fileToDownload.close();
-      isDownloadingFile = false;
       
-      const char* endMsg = "{\"type\":\"download_end\"}\n";
-      pTxCharacteristic->setValue((uint8_t*)endMsg, strlen(endMsg));
-      pTxCharacteristic->notify();
+      if (actuallyRead > 0) {
+        pTxCharacteristic->setValue(chunk, actuallyRead);
+        pTxCharacteristic->notify();
+        fileDownloadOffset += actuallyRead;
+        
+        if (fileDownloadOffset >= fileDownloadSize) {
+          if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+            fileToDownload.close();
+            xSemaphoreGive(fsMutex);
+          }
+          isDownloadingFile = false;
+          fileDownloadOffset = 0;
+          
+          const char* endMsg = "{\"type\":\"download_end\"}\n";
+          pTxCharacteristic->setValue((uint8_t*)endMsg, strlen(endMsg));
+          pTxCharacteristic->notify();
+        }
+      }
     }
     return; // Pomiń wysyłanie telemetrii
   }
@@ -185,15 +205,18 @@ void sendBLETelemetry() {
   static bool prevLogging = false;
   static uint32_t stopTimer = 0;
 
-  // Detekcja zmiany stanu logowania
+  // Detekcja zmiany stanu logowania (dla wymuszenia wysyłki statusu Flash)
   bool startTrigger = (isLogging && !prevLogging); 
-  if (!isLogging && prevLogging) {
-    stopTimer = millis() + 300; // Planujemy finalny status za 300ms
+  if (isLogging) {
+    stopTimer = 0; // Każdy START natychmiast anuluje stare raporty STOP
+  } else if (prevLogging) {
+    stopTimer = millis() + 300; // Planujemy finalny status za 300ms tylko przy przejściu na STOP
   }
 
+  // Logika wysyłki statusu Flash
   bool triggerUpdate = startTrigger;
   if (isLogging && (millis() - lastFSUpdate > 5000)) triggerUpdate = true;
-  if (stopTimer > 0 && millis() >= stopTimer) {
+  if (stopTimer > 0 && millis() >= stopTimer && !isLogging) {
     triggerUpdate = true;
     stopTimer = 0; 
   }
@@ -201,7 +224,13 @@ void sendBLETelemetry() {
   if (triggerUpdate) {
     lastFSUpdate = millis();
     char fsBuf[128];
-    snprintf(fsBuf, sizeof(fsBuf), "{\"type\":\"fs_stat\",\"f_used\":%u,\"f_total\":%u}\n", (uint32_t)LittleFS.usedBytes(), (uint32_t)LittleFS.totalBytes());
+    size_t total = 0, used = 0;
+    if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+      total = LittleFS.totalBytes();
+      used = LittleFS.usedBytes();
+      xSemaphoreGive(fsMutex);
+    }
+    snprintf(fsBuf, sizeof(fsBuf), "{\"type\":\"fs_stat\",\"f_used\":%u,\"f_total\":%u}\n", (uint32_t)used, (uint32_t)total);
     pTxCharacteristic->setValue((uint8_t*)fsBuf, strlen(fsBuf));
     pTxCharacteristic->notify();
   }

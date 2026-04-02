@@ -6,11 +6,10 @@ QueueHandle_t logQueue = NULL;
 
 // Inicjalizacja systemu plików LittleFS
 void initDataLogger() {
-  LittleFS.begin(true);
-  
-  // Usuwa stary plik CSV, jeśli istnieje (zastąpiony przez .bin)
-  if (LittleFS.exists("/telemetry.csv")) {
-    LittleFS.remove("/telemetry.csv");
+  if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+    LittleFS.begin(true);
+    if (LittleFS.exists("/telemetry.csv")) LittleFS.remove("/telemetry.csv");
+    xSemaphoreGive(fsMutex);
   }
 }
 
@@ -30,40 +29,69 @@ void taskLogging(void *pvParameters) {
   uint32_t lastFlush = 0;
   uint16_t checkCounter = 0;
   bool isSpaceFull = false;
+  bool lastIsLogging = false;
 
   while (true) {
     // Czekaj na dane w kolejce (blokuje zadanie, gdy nie ma nic do zapisu)
     if (xQueueReceive(logQueue, &data, portMAX_DELAY) == pdPASS) {
       if (isLogging) {
-        // Otwórz plik tylko raz (trzymaj otwarty dopóki logowanie trwa)
-        if (!file) file = LittleFS.open("/telemetry.bin", "a");
+        if (!lastIsLogging) {
+          if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+            if (file) file.close();
+            file = LittleFS.open("/telemetry.bin", "w"); 
+            xSemaphoreGive(fsMutex);
+          }
+          lastIsLogging = true;
+        } else if (!file) {
+          if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+            file = LittleFS.open("/telemetry.bin", "a");
+            xSemaphoreGive(fsMutex);
+          }
+        }
+
         if (file) {
           // Sprawdzenie wolnego miejsca (co 100 rekordów, by nie przeciążać LittleFS)
           if (checkCounter++ >= 100) {
             checkCounter = 0;
-            size_t freeSpace = LittleFS.totalBytes() - LittleFS.usedBytes();
-            if (freeSpace < 102400) isSpaceFull = true; 
+            size_t total = 0, used = 0;
+            if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+               total = LittleFS.totalBytes();
+               used = LittleFS.usedBytes();
+               xSemaphoreGive(fsMutex);
+            }
+            if (total - used < 10240) isSpaceFull = true; 
           }
 
           if (isSpaceFull) { 
             isLogging = false; 
-            file.close(); 
+            if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+               file.close(); 
+               xSemaphoreGive(fsMutex);
+            }
             isSpaceFull = false; 
             continue; 
           }
 
           // Zapis binarny (raw struct dump)
-          file.write((const uint8_t*)&data, sizeof(TelemetryData));
-          
-          // Flush co 5s (optymalizacja żywotności Flash, przy zachowaniu bezpieczeństwa danych)
-          if (millis() - lastFlush > 5000) {
-            file.flush();
-            lastFlush = millis();
+          if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+            file.write((const uint8_t*)&data, sizeof(TelemetryData));
+            
+            // Flush co 5s (optymalizacja żywotności Flash, przy zachowaniu bezpieczeństwa danych)
+            if (millis() - lastFlush > 5000) {
+              file.flush();
+              lastFlush = millis();
+            }
+            xSemaphoreGive(fsMutex);
           }
         }
-      } else if (file) {
-        file.close(); 
-        file = File(); // Reset obiektu pliku, by !file zadziałało przy nowym REC
+      } else {
+        if (file) {
+          if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+            file.close();
+            xSemaphoreGive(fsMutex);
+          }
+        }
+        lastIsLogging = false; 
       }
     }
   }
@@ -71,7 +99,10 @@ void taskLogging(void *pvParameters) {
 
 void wipeFilesystem() {
   isLogging = false; 
-  LittleFS.format();
-  LittleFS.begin(true);
+  if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+    LittleFS.format();
+    LittleFS.begin(true);
+    xSemaphoreGive(fsMutex);
+  }
 }
 
