@@ -22,10 +22,10 @@ const textEncoder = new TextEncoder();
 // Zmienne zegarów i animacji
 let t_rpm = 0, c_rpm = 0;
 let t_load = 0, c_load = 0;
-let t_volt = 12.0, c_volt = 12.0;
+let t_volt = 10.0, c_volt = 10.0;
 let t_tps = 0, c_tps = 0;
 let t_fuel = 0, c_fuel = 100;
-let maxRpm = 8000;
+let maxRpm = 6000;
 let gHistory = new Array(120).fill(0);
 let lastSpeedForG = 0, lastTimeForG = Date.now(), filteredG = 0;
 
@@ -271,7 +271,7 @@ function parseTelemetryJSON(jsonStr) {
 
       // Synchronizacja cache'u przy starcie
       cachedRpmLimit = parseInt(data.rpm);
-      maxRpm = cachedRpmLimit + 500;
+      maxRpm = cachedRpmLimit;
 
       drawGaugeStatic();
       return;
@@ -410,7 +410,7 @@ function updateVal(id, val) {
   document.getElementById(id).textContent = val;
   if (id === 'rpmVal') {
     cachedRpmLimit = parseInt(val);
-    maxRpm = cachedRpmLimit + 500;
+    maxRpm = cachedRpmLimit;
     drawGaugeStatic();
     setupGradients();
   }
@@ -494,7 +494,7 @@ function drawGaugeStatic() {
 
 function renderCanvas() {
   const curMode = lastData.mode !== undefined ? lastData.mode : 0;
-  const curTemp = lastData.temp !== undefined ? lastData.temp : 20;
+  const curTemp = lastData.temp !== undefined ? lastData.temp : 999;
 
   c_rpm += (t_rpm - c_rpm) * 0.3;
   c_load += (t_load - c_load) * 0.15;
@@ -615,7 +615,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cachedRpmLimit = parseInt(UI.rpmLimit.value) || 6000;
   setupGradients();
   drawGaugeStatic();
-  maxRpm = cachedRpmLimit + 500;
+  maxRpm = cachedRpmLimit;
   requestAnimationFrame(renderCanvas);
   let btnExp = document.querySelector('.btn-export');
   if (btnExp) btnExp.onclick = () => alert("Pobieranie logów CSV odbywa się poprzez połączenie Bluetooth.");
