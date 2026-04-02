@@ -186,28 +186,24 @@ void handleWelcomeSequence(uint32_t now) {
   const uint32_t duration = 3000; // Długość animacji powitalnej
 
   if (elapsed < duration) {
-    // Próg od 0 do 255 dla całości trwania animacji
-    uint8_t pos = (elapsed * 255) / duration; 
-    // Przesunięcie fali (mapujemy 0-255 na zakres od -2 do 10 dla płynnego wejścia/wyjścia)
-    int16_t head = map(pos, 0, 255, -2, NUM_LEDS + 2); 
+    // Pływająca głowica fali
+    float head = -3.0f + ((float)elapsed / (float)duration) * 15.0f;
     
     for (int i = 0; i < NUM_LEDS; i++) {
-        int16_t dist = abs(i - head);
-        if (dist == 0) {
-          targetLeds[i] = palette[i];
-          targetLeds[i].maximizeBrightness();
-        } else if (dist == 1) {
-          targetLeds[i] = palette[i];
-          targetLeds[i].nscale8(160); // 60% jasności dla krawędzi fali
-        } else if (dist == 2) {
-          targetLeds[i] = palette[i];
-          targetLeds[i].nscale8(60);  // 25% jasności dla zanikania
-        } else {
-          targetLeds[i] = CRGB::Black;
-        }
+      float dist = fabs((float)i - head);
+      
+      if (dist < 2.0) {
+        // Obliczamy jasność na podstawie dystansu (krzywa liniowa dla płynności)
+        float brtFactor = 1.0 - (dist / 2.0);
+        if (brtFactor < 0) brtFactor = 0;
+        
+        targetLeds[i] = palette[i];
+        targetLeds[i].nscale8((uint8_t)(brtFactor * 255));
+      } else {
+        targetLeds[i] = CRGB::Black;
+      }
     }
   } else {
-    // Koniec ceremonii - przechodzimy do głównego zadania
     currentMode = MODE_SHIFT_LIGHT;
     welcomeTimer = 0; 
   }

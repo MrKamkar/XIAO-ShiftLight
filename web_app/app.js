@@ -274,7 +274,7 @@ function parseTelemetryJSON(jsonStr) {
       if (data.f_total > 0) {
         const perc = Math.round((data.f_used / data.f_total) * 100);
         UI.flashFill.style.width = perc + "%";
-        UI.flashPerc.innerText = perc + "%";
+        UI.flashPerc.textContent = perc + "%";
       }
 
       // Synchronizacja cache'u przy starcie

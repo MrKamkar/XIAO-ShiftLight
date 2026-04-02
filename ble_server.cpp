@@ -183,17 +183,30 @@ void sendBLETelemetry() {
   static TelemetryPacket pkg;
   static uint32_t lastFSUpdate = 0;
   static bool prevLogging = false;
-  
-  // Wyślij status Flash co 5s LUB natychmiast po zmianie stanu logowania (Start/Stop)
-  if ((isLogging != prevLogging) || (isLogging && (millis() - lastFSUpdate > 5000))) {
+  static uint32_t stopTimer = 0;
+
+  // Detekcja zmiany stanu logowania
+  bool startTrigger = (isLogging && !prevLogging); 
+  if (!isLogging && prevLogging) {
+    stopTimer = millis() + 300; // Planujemy finalny status za 300ms
+  }
+
+  bool triggerUpdate = startTrigger;
+  if (isLogging && (millis() - lastFSUpdate > 5000)) triggerUpdate = true;
+  if (stopTimer > 0 && millis() >= stopTimer) {
+    triggerUpdate = true;
+    stopTimer = 0; 
+  }
+
+  if (triggerUpdate) {
     lastFSUpdate = millis();
-    prevLogging = isLogging;
-    
     char fsBuf[128];
     snprintf(fsBuf, sizeof(fsBuf), "{\"type\":\"fs_stat\",\"f_used\":%u,\"f_total\":%u}\n", (uint32_t)LittleFS.usedBytes(), (uint32_t)LittleFS.totalBytes());
     pTxCharacteristic->setValue((uint8_t*)fsBuf, strlen(fsBuf));
     pTxCharacteristic->notify();
   }
+  
+  prevLogging = isLogging; // Aktualizacja stanu na koniec
   
   pkg.mode = (uint8_t)currentMode;
   pkg.speed = (uint8_t)currentSpeed;
