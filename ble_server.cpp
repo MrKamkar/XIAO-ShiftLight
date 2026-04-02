@@ -182,9 +182,13 @@ void sendBLETelemetry() {
   // Tworzymy paczkę binarną (30 bajtów) zamiast 300 bajtów JSON
   static TelemetryPacket pkg;
   static uint32_t lastFSUpdate = 0;
+  static bool prevLogging = false;
   
-  if (isLogging && (millis() - lastFSUpdate > 5000)) {
+  // Wyślij status Flash co 5s LUB natychmiast po zmianie stanu logowania (Start/Stop)
+  if ((isLogging != prevLogging) || (isLogging && (millis() - lastFSUpdate > 5000))) {
     lastFSUpdate = millis();
+    prevLogging = isLogging;
+    
     char fsBuf[128];
     snprintf(fsBuf, sizeof(fsBuf), "{\"type\":\"fs_stat\",\"f_used\":%u,\"f_total\":%u}\n", (uint32_t)LittleFS.usedBytes(), (uint32_t)LittleFS.totalBytes());
     pTxCharacteristic->setValue((uint8_t*)fsBuf, strlen(fsBuf));
