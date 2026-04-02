@@ -6,7 +6,12 @@ QueueHandle_t logQueue = NULL;
 
 // Inicjalizacja systemu plików LittleFS
 void initDataLogger() {
-  LittleFS.begin(true); // Parametr 'true' automatycznie formatuje przy pierwszym uruchomieniu
+  LittleFS.begin(true);
+  
+  // Cleanup v1.6: Usuń stary plik CSV, jeśli istnieje (zastąpiony przez .bin)
+  if (LittleFS.exists("/telemetry.csv")) {
+    LittleFS.remove("/telemetry.csv");
+  }
 }
 
 // Nadpisanie pliku i rozpoczęcie zapisu binarnego
