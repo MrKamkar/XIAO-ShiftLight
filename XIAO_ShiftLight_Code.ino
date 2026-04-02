@@ -37,8 +37,9 @@ volatile uint32_t dragTimerStart = 0;
 volatile uint32_t timerResult = 0;
 
 volatile bool isLogging = false; 
-volatile uint32_t baseUsedBytes = 0;
 volatile uint32_t currentFileSize = 0;
+volatile uint32_t sessionStartFileSize = 0;
+volatile uint32_t sessionStartUsedBytes = 0;
 SemaphoreHandle_t fsMutex = NULL;
 
 Preferences preferences;

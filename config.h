@@ -67,5 +67,6 @@ extern volatile uint8_t obdHz;        // Częstotliwość OBD (Hz)
 
 // Mutex dla bezpiecznego dostępu do systemu plików (Flash) z obu rdzeni naraz
 extern SemaphoreHandle_t fsMutex;
-extern volatile uint32_t baseUsedBytes; // Bazowa zajętość przed sesją zapisu
 extern volatile uint32_t currentFileSize;
+extern volatile uint32_t sessionStartFileSize;
+extern volatile uint32_t sessionStartUsedBytes;
