@@ -81,6 +81,21 @@ class MyRxCallbacks: public BLECharacteristicCallbacks {
         pTxCharacteristic->notify();
       }
       else if (cmd == "cmd:log_start") {
+        if (!isLogging) {
+          // Natychmiastowa inicjalizacja bazy zajętości przed sesją
+          if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
+            size_t total = LittleFS.usedBytes();
+            if (LittleFS.exists("/telemetry.bin")) {
+              File f = LittleFS.open("/telemetry.bin", "r");
+              size_t fSize = f.size();
+              f.close();
+              if (total >= fSize) total -= fSize; // Odejmujemy stary plik, bo "w" go nadpisze
+            }
+            baseUsedBytes = total;
+            currentFileSize = 0;
+            xSemaphoreGive(fsMutex);
+          }
+        }
         startDataLog();
       } 
       else if (cmd == "cmd:log_stop") {
@@ -91,7 +106,11 @@ class MyRxCallbacks: public BLECharacteristicCallbacks {
         size_t total = 0, used = 0;
         if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
           total = LittleFS.totalBytes();
-          used = LittleFS.usedBytes();
+          if (isLogging) {
+            used = baseUsedBytes + currentFileSize;
+          } else {
+            used = LittleFS.usedBytes();
+          }
           xSemaphoreGive(fsMutex);
         }
         snprintf(confBuf, sizeof(confBuf), "{\"type\":\"config\",\"rpm\":%d,\"bright\":%d,\"eco\":%s,\"buzzer\":%s,\"f_used\":%u,\"f_total\":%u}\n",
@@ -227,7 +246,11 @@ void sendBLETelemetry() {
     size_t total = 0, used = 0;
     if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
       total = LittleFS.totalBytes();
-      used = LittleFS.usedBytes();
+      if (isLogging) {
+        used = baseUsedBytes + currentFileSize; 
+      } else {
+        used = LittleFS.usedBytes();
+      }
       xSemaphoreGive(fsMutex);
     }
     snprintf(fsBuf, sizeof(fsBuf), "{\"type\":\"fs_stat\",\"f_used\":%u,\"f_total\":%u}\n", (uint32_t)used, (uint32_t)total);

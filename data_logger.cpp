@@ -75,6 +75,7 @@ void taskLogging(void *pvParameters) {
           // Zapis binarny (raw struct dump)
           if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
             file.write((const uint8_t*)&data, sizeof(TelemetryData));
+            currentFileSize = file.size(); // Aktualizacja liczniku "live"
             
             // Flush co 5s (optymalizacja żywotności Flash, przy zachowaniu bezpieczeństwa danych)
             if (millis() - lastFlush > 5000) {
@@ -88,6 +89,7 @@ void taskLogging(void *pvParameters) {
         if (file) {
           if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
             file.close();
+            currentFileSize = 0;
             xSemaphoreGive(fsMutex);
           }
         }
