@@ -90,11 +90,11 @@ void handleShiftLightLogic(uint32_t now) {
 
   // Histereza temperatury (zapobiega migotaniu trybu zimnego przy równych 75st)
   static bool isColdState = true;
-  if (currentTemp != -127) {
+  if (currentTemp != 999) {
     if (isColdState && currentTemp >= 75) isColdState = false;      // Silnik się zagrzał
     else if (!isColdState && currentTemp < 72) isColdState = true;  // Silnik ostygł (np. długi postój)
   }
-  bool isCold = (isColdState && currentTemp != -127); 
+  bool isCold = (isColdState && currentTemp != 999); 
   int activeLimit = shiftLimit;
   
   if (ecoMode) activeLimit = shiftLimit * 0.4;     // Tryb ECO to 40% głównych obrotów (np. 1600 dla diesla, 2400 dla benzyny)

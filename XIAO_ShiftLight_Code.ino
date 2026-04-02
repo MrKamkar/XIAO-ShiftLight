@@ -23,10 +23,10 @@ volatile uint32_t lastRPMTime = 0; // Inicjalizacja czasu ostatniej poprawnej ra
 
 volatile int currentRPM = 0;
 volatile int currentSpeed = 0;
-volatile int currentTemp = -127; 
+volatile int currentTemp = 0; 
 volatile int currentLoad = 0;
 volatile float currentVolt = 12.0;
-volatile int currentIAT = -127;
+volatile int currentIAT = 0;
 volatile int currentTPS = 0;
 volatile int currentMAP = 0;
 volatile int currentFuel = 0;

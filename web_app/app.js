@@ -209,9 +209,9 @@ function applyTelemetryToUI(data) {
   if (data.hz !== undefined) UI.obdHz.textContent = data.hz + " Hz";
   if (lastData.speed !== data.speed) UI.speed.textContent = data.speed;
 
-  const curTemp = data.temp !== undefined ? data.temp : (lastData.temp !== undefined ? lastData.temp : -127);
+  const curTemp = data.temp !== undefined ? data.temp : (lastData.temp !== undefined ? lastData.temp : 999);
 
-  if (curTemp !== lastData.temp) UI.temp.textContent = (curTemp === -127) ? "--" : curTemp;
+  if (curTemp !== lastData.temp) UI.temp.textContent = (curTemp === 999) ? "--" : curTemp;
 
   t_rpm = data.rpm !== undefined ? data.rpm : 0;
   t_load = data.load !== undefined ? data.load : (lastData.load !== undefined ? lastData.load : 0);
@@ -223,7 +223,7 @@ function applyTelemetryToUI(data) {
   t_tps = data.tps !== undefined ? data.tps : (lastData.tps !== undefined ? lastData.tps : 0);
   if (lastData.tps !== t_tps) UI.valTps.textContent = t_tps + "%";
 
-  const iatVal = data.iat !== undefined ? data.iat : (lastData.iat !== undefined ? lastData.iat : -127);
+  const iatVal = data.iat !== undefined ? data.iat : (lastData.iat !== undefined ? lastData.iat : 999);
   if (data.map !== undefined && lastData.map !== data.map) UI.valMap.textContent = data.map;
 
   t_fuel = data.fuel !== undefined ? data.fuel : (lastData.fuel !== undefined ? lastData.fuel : 100);
@@ -237,7 +237,7 @@ function applyTelemetryToUI(data) {
   calculateG(data.speed, data.gforce);
 
   let stCls = "sys-state", stTxt = "";
-  if (curTemp === -127) { stCls += " state-offline"; stTxt = "⏳ Oczekiwanie Na Dane ECU (CAN)..."; }
+  if (curTemp === 999) { stCls += " state-offline"; stTxt = "⏳ Oczekiwanie Na Dane ECU (CAN)..."; }
   else if (cachedEcoMode) { stCls += " state-eco"; stTxt = "🌿 Eco Drive Aktywny"; }
   else if (curTemp < 75) {
     stCls += " state-cold";

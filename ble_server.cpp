@@ -82,17 +82,7 @@ class MyRxCallbacks: public BLECharacteristicCallbacks {
       }
       else if (cmd == "cmd:log_start") {
         if (!isLogging) {
-          if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
-            size_t fSize = 0;
-            if (LittleFS.exists("/telemetry.bin")) {
-              File f = LittleFS.open("/telemetry.bin", "r");
-              fSize = f.size();
-              f.close();
-            }
-            baseUsedBytes = LittleFS.usedBytes() - fSize;
-            currentFileSize = fSize;
-            xSemaphoreGive(fsMutex);
-          }
+          currentFileSize = 0; 
         }
         startDataLog();
       } 
@@ -104,7 +94,7 @@ class MyRxCallbacks: public BLECharacteristicCallbacks {
         size_t total = 0, used = 0;
         if (xSemaphoreTake(fsMutex, portMAX_DELAY)) {
           total = LittleFS.totalBytes();
-          used = baseUsedBytes + currentFileSize;
+          used = LittleFS.usedBytes();
           xSemaphoreGive(fsMutex);
         }
         snprintf(confBuf, sizeof(confBuf), "{\"type\":\"config\",\"rpm\":%d,\"bright\":%d,\"eco\":%s,\"buzzer\":%s,\"f_used\":%u,\"f_total\":%u}\n",
